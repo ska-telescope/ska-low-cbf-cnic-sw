@@ -1,0 +1,97 @@
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/python/tags/
+image: python:3.8
+
+stages:
+ - lint
+ - test
+ - publish
+
+cache:
+  key:
+    files:
+      - poetry.lock
+      - gitlab-ci.yml
+    prefix: ${CI_JOB_NAME}
+  paths:
+    - .venv
+
+variables:
+  # Token for access to pypi package registries
+  POETRY_HTTP_BASIC_PROJECT_USERNAME: gitlab-ci-token
+  POETRY_HTTP_BASIC_PROJECT_PASSWORD: $CI_JOB_TOKEN
+  POETRY_HTTP_BASIC_PUBLIC_USERNAME: gitlab-ci-token
+  POETRY_HTTP_BASIC_PUBLIC_PASSWORD: $CI_JOB_TOKEN
+
+lint:
+  stage: lint
+  tags:
+    - docker
+  before_script:
+    - pip3 install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry install --no-root
+  script:
+    - poetry run black --check src tests
+    - poetry run isort --check src tests
+
+test:
+  stage: test
+  tags:
+    - docker
+  before_script:
+    - pip3 install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry install
+  script:
+    - poetry run pytest -v
+
+publish dev package:
+  stage: publish
+  tags:
+    - docker
+  before_script:
+    - pip3 install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry config repositories.project "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi"
+    - poetry install --no-root
+  script:
+    # note: poetry does not comply with semantic versioning
+    # this is the best I can do for now
+    # ideally it would be like "0.1.2-dev+$CI_COMMIT_SHORT_SHA"
+    - poetry version $(poetry version -s)a0+dev-${CI_COMMIT_SHORT_SHA}
+    - poetry build
+    - poetry publish --repository project
+
+release to internal registry:
+  stage: publish
+  when: manual
+  rules:
+    # only allow publication from main branch
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  tags:
+    - docker
+  before_script:
+    - pip3 install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry config repositories.public "$CI_API_V4_URL/projects/$CI_PYPI_PUBLIC_PROJECT_ID/packages/pypi"
+    - poetry install --no-root
+  script:
+    - poetry build
+    - poetry publish --repository public
+
+release to public registry (pypi.org):
+  stage: publish
+  when: manual
+  rules:
+    # only allow publication from main branch
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  tags:
+    - docker
+  before_script:
+    - pip3 install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry install --no-root
+  script:
+    - poetry build
+    - poetry publish --username "$PYPI_USERNAME" --password "$PYPI_PASSWORD"
