@@ -36,6 +36,10 @@ secondary = true
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.black]
+line-length = 79
+
 [tool.isort]
 profile = "black"
 src_paths = ["src/ska_low_cbf_sw_cnic", "tests"]
+line_length = 79
