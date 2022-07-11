@@ -1,0 +1,6 @@
+# for compatibility with the black code formatter
+[MESSAGES CONTROL]
+disable = C0330, C0326
+
+[format]
+max-line-length = 79
