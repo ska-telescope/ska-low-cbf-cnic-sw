@@ -2,7 +2,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-from fxpmath import Fxp
 from rich.box import SQUARE
 from rich.layout import Layout
 from rich.live import Live

@@ -1,3 +1,4 @@
+# pylint: skip-file
 # M&C Python client include file for trafgen FPGA
 # Note that this file uses register (not AXI byte) addresses and offsets
 FPGAMAP = {

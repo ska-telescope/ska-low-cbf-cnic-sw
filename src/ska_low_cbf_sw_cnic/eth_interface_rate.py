@@ -22,9 +22,7 @@ def main():
     args = parser.parse_args()
 
     prev_rx_bytes = 0
-    prev_rx_packets = 0
     prev_tx_bytes = 0
-    prev_tx_packets = 0
     newtime = datetime.now()
 
     ifconfig = os.popen(f"sudo ifconfig {args.interface} promisc")
@@ -48,13 +46,10 @@ def main():
         tx_packets = int(stream_tx.split()[1])
         rate_tx.close()
 
-        measurement_time = 1
-
         prevtime = newtime
         newtime = datetime.now()
         newtime_ts = newtime.timestamp()
         prevtime_ts = prevtime.timestamp()
-        timediff = newtime - prevtime
         timediff_ts = newtime_ts - prevtime_ts
 
         print(f"{newtime}     timediff_ts = {timediff_ts} s")
@@ -62,25 +57,23 @@ def main():
         rx_rate = (rx_bytes - prev_rx_bytes) * 8 / timediff_ts
         tx_rate = (tx_bytes - prev_tx_bytes) * 8 / timediff_ts
 
-        print(f"\n\n")
+        print("\n\n")
         print(f"          Interface {args.interface}")
-        print(f"|----------------------------------------")
+        print("|----------------------------------------")
         print(f"| Total rx_packets : {rx_packets}")
         print(f"| Total rx_bytes   : {rx_bytes}")
-        print(f"|----------------------------------------")
+        print("|----------------------------------------")
         print(f"| rx_rate          : {rx_rate/1E9:.6} Gbps")
-        print(f"|----------------------------------------")
+        print("|----------------------------------------")
         print(f"| Total tx_packets : {tx_packets}")
         print(f"| Total tx_bytes   : {tx_bytes}")
-        print(f"|----------------------------------------")
+        print("|----------------------------------------")
         print(f"| tx_rate          : {tx_rate/1E9:.6} Gbps")
-        print(f"|----------------------------------------")
+        print("|----------------------------------------")
 
         time.sleep(1)
         prev_rx_bytes = rx_bytes
-        prev_rx_packets = rx_packets
         prev_tx_bytes = tx_bytes
-        prev_tx_packets = tx_packets
 
 
 if __name__ == "__main__":
