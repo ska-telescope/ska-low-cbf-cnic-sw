@@ -1,8 +1,9 @@
 import pytest
 from ska_low_cbf_fpga import ArgsMap, ArgsSimulator
 
-from fpgamap_22032914 import FPGAMAP
 from ska_low_cbf_sw_cnic.ptp import Ptp
+
+from .fpgamap_22032914 import FPGAMAP
 
 
 @pytest.fixture
