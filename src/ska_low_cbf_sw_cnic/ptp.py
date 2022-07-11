@@ -110,7 +110,8 @@ class Ptp(FpgaPeripheral):
         b = self.profile_mac_lo.value & 0xFF
         c = (self.profile_mac_lo.value & 0xFF00) >> 8
         return IclField(
-            description="Low 3 bytes of MAC address", value=(a << 16) | (b << 8) | c
+            description="Low 3 bytes of MAC address",
+            value=(a << 16) | (b << 8) | c,
         )
 
     @user_mac_address.setter
@@ -135,7 +136,8 @@ class Ptp(FpgaPeripheral):
         return IclField(
             value="DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
             + ":".join(
-                f"{self.user_mac_address.value:06x}"[_ : _ + 2] for _ in range(0, 6, 2)
+                f"{self.user_mac_address.value:06x}"[_ : _ + 2]
+                for _ in range(0, 6, 2)
             ).upper(),
             description="Full MAC address",
         )
@@ -188,6 +190,8 @@ class Ptp(FpgaPeripheral):
                 | self.schedule_ptp_seconds_lower.value
             )
             + Fxp(
-                self.schedule_ptp_sub_seconds.value, dtype=FRACTION_FXP_TYPE, raw=True
+                self.schedule_ptp_sub_seconds.value,
+                dtype=FRACTION_FXP_TYPE,
+                raw=True,
             ).get_val(),
         )

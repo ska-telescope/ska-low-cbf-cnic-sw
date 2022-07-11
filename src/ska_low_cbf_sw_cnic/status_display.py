@@ -92,7 +92,11 @@ PACKET_CRTL_PARAMETERS = {
 def generate_hpc_table(hpc: HbmPacketController) -> Table:
     """Create HBM packet controller status table."""
     table = Table(
-        "Parameter", "Value", show_header=False, title="HBM Pkt Ctrl", box=SQUARE
+        "Parameter",
+        "Value",
+        show_header=False,
+        title="HBM Pkt Ctrl",
+        box=SQUARE,
     )
 
     for attr, desc in PACKET_CRTL_PARAMETERS.items():
@@ -101,8 +105,12 @@ def generate_hpc_table(hpc: HbmPacketController) -> Table:
     return table
 
 
-def generate_100g_table(system: FpgaPeripheral, hpc: HbmPacketController) -> Table:
-    table = Table("Parameter", "Value", title="100G", show_header=False, box=SQUARE)
+def generate_100g_table(
+    system: FpgaPeripheral, hpc: HbmPacketController
+) -> Table:
+    table = Table(
+        "Parameter", "Value", title="100G", show_header=False, box=SQUARE
+    )
     table.add_row("Tx", f"{system.eth100g_tx_total_packets.value}")
     table.add_row("Rx", f"{system.eth100g_rx_total_packets.value}")
     bad_fcs = system.eth100g_rx_bad_fcs.value
@@ -117,12 +125,18 @@ def generate_100g_table(system: FpgaPeripheral, hpc: HbmPacketController) -> Tab
 
 def generate_static_table(static_info: DisplayStaticInfo):
     table = Table(
-        "Parameter", "Value", title="Static Info", show_header=False, box=SQUARE
+        "Parameter",
+        "Value",
+        title="Static Info",
+        show_header=False,
+        box=SQUARE,
     )
     table.add_row("HBM Usage", f"{static_info.total_hbm_usage}")
     table.add_row("Packet size on wire", f"{static_info.packet_size_on_wire}")
     table.add_row("Aligned Packet size", f"{static_info.aligned_packet_size}")
-    table.add_row("Expected beats per packet", f"{static_info.beats_per_packet}")
+    table.add_row(
+        "Expected beats per packet", f"{static_info.beats_per_packet}"
+    )
     table.add_row("Expected beats in total", f"{static_info.beats_total}")
     table.add_row("---", "---")
     table.add_row("Expected Tx Rate", f"{static_info.transmit_rate:.3f}")
@@ -130,21 +144,27 @@ def generate_static_table(static_info: DisplayStaticInfo):
     table.add_row("Expected Packets/s", f"{static_info.pps:.3f}")
     # MAC Tx PPS
     table.add_row("Expected Tx time", f"{static_info.tx_time:.3f}")
-    table.add_row("Time per loop (ms)", f"{static_info.total_loop_time_ns/1e6:.1f}")
+    table.add_row(
+        "Time per loop (ms)", f"{static_info.total_loop_time_ns/1e6:.1f}"
+    )
     # Elapsed time
 
     return table
 
 
 def generate_ptp_table(ptp: Ptp) -> Table:
-    table = Table("Parameter", "Value", title="PTP", show_header=False, box=SQUARE)
+    table = Table(
+        "Parameter", "Value", title="PTP", show_header=False, box=SQUARE
+    )
     table.add_row("Domain number", f"{hex(ptp.profile_domain_num.value)}")
     table.add_row("MAC address", f"{ptp.mac_address.value}")
     date_time = datetime.fromtimestamp(int(ptp.time.value))
     table.add_row("Date", f"{date_time.strftime('%Y-%m-%d')}")
     table.add_row("Time", f"{date_time.strftime('%H:%M:%S')}")
     sched_time = datetime.fromtimestamp(ptp.scheduled_time.value)
-    table.add_row("Scheduled start time", f"{sched_time.strftime('%H:%M:%S.%f')}")
+    table.add_row(
+        "Scheduled start time", f"{sched_time.strftime('%H:%M:%S.%f')}"
+    )
     table.add_row("Scheduled start time (UNIX)", f"{sched_time.timestamp()}")
     # these are not really useful to end user but maybe for debugging
     # table.add_row("blk1_t1_sec", f"{ptp.blk1_t1_sec.value}")
@@ -158,7 +178,8 @@ def generate_ptp_table(ptp: Ptp) -> Table:
         "schedule_ptp_seconds_lower", f"{ptp.schedule_ptp_seconds_lower.value}"
     )
     table.add_row(
-        "schedule_ptp_sub_seconds", f"{hex(ptp.schedule_ptp_sub_seconds.value)}"
+        "schedule_ptp_sub_seconds",
+        f"{hex(ptp.schedule_ptp_sub_seconds.value)}",
     )
     return table
 
@@ -172,7 +193,9 @@ def create_layout():
     )
     layout["body"].split_row(Layout(name="left"), Layout(name="right"))
     layout["right"].split_column(
-        Layout(name="top_right"), Layout(name="mid_right"), Layout(name="bot_right")
+        Layout(name="top_right"),
+        Layout(name="mid_right"),
+        Layout(name="bot_right"),
     )
     return layout
 
@@ -181,7 +204,9 @@ def update_layout(
     layout: Layout, fpga: FpgaPersonality, static_info: DisplayStaticInfo
 ):
     layout["left"].update(generate_hpc_table(fpga.hbm_pktcontroller))
-    layout["top_right"].update(generate_100g_table(fpga.system, fpga.hbm_pktcontroller))
+    layout["top_right"].update(
+        generate_100g_table(fpga.system, fpga.hbm_pktcontroller)
+    )
     if static_info.ptp_enabled:
         layout["mid_right"].update(generate_ptp_table(fpga.timeslave))
 
@@ -194,7 +219,9 @@ def update_static_info(layout: Layout, static_info: DisplayStaticInfo):
     layout["bot_right"].update(generate_static_table(static_info))
 
 
-def display_status_forever(fpga: FpgaPersonality, static_info: DisplayStaticInfo):
+def display_status_forever(
+    fpga: FpgaPersonality, static_info: DisplayStaticInfo
+):
     layout = create_layout()
     update_layout(layout, fpga, static_info)
     update_static_info(layout, static_info)

@@ -31,7 +31,10 @@ from ska_low_cbf_fpga.args_map import ArgsMap
 from ska_low_cbf_fpga.args_xrt import ArgsXrt
 
 from ska_low_cbf_sw_cnic.cnic_fpga import CnicFpga
-from ska_low_cbf_sw_cnic.status_display import DisplayStaticInfo, display_status_forever
+from ska_low_cbf_sw_cnic.status_display import (
+    DisplayStaticInfo,
+    display_status_forever,
+)
 
 HBM_MEMORY_BUFFER = 1
 MEM_FILL_VALUE = 0xCAFEF00D
@@ -43,7 +46,9 @@ def debug_to_memory(randomize, number_of_packets, pkt_len, hbm_size):
     else:
         aligned_packet_len = pkt_len
     fill_value = socket.htonl(MEM_FILL_VALUE)
-    buffer = np.full(int(hbm_size / 4), fill_value, dtype=np.uint32).view(np.uint8)
+    buffer = np.full(int(hbm_size / 4), fill_value, dtype=np.uint32).view(
+        np.uint8
+    )
     pkt = np.zeros(aligned_packet_len, dtype=np.uint8)
 
     for i in range(number_of_packets):
@@ -62,7 +67,8 @@ def debug_to_memory(randomize, number_of_packets, pkt_len, hbm_size):
 
         pkt[pkt_len:] = 0xFF
         buffer[
-            i * aligned_packet_len : i * aligned_packet_len + aligned_packet_len
+            i * aligned_packet_len : i * aligned_packet_len
+            + aligned_packet_len
         ] = pkt
 
     return buffer, pkt_len, aligned_packet_len, number_of_packets
@@ -70,7 +76,9 @@ def debug_to_memory(randomize, number_of_packets, pkt_len, hbm_size):
 
 def read_pcap_file_to_memory(file, hbm_size, logger):
     logger.info(f"Reading {file.name}")
-    buffer = np.full(int(hbm_size / 4), MEM_FILL_VALUE, dtype=np.uint32).view(np.uint8)
+    buffer = np.full(int(hbm_size / 4), MEM_FILL_VALUE, dtype=np.uint32).view(
+        np.uint8
+    )
 
     counter = 0
     ipcounter = 0
@@ -98,7 +106,9 @@ def read_pcap_file_to_memory(file, hbm_size, logger):
             aligned_packet_len = pkt_len
 
         pkt_padded = np.zeros(aligned_packet_len, dtype=np.uint8)
-        pkt_padded[:pkt_len] = copy.deepcopy(np.frombuffer(pkt, dtype=np.uint8))
+        pkt_padded[:pkt_len] = copy.deepcopy(
+            np.frombuffer(pkt, dtype=np.uint8)
+        )
         pkt_padded[pkt_len:] = 0xFF
 
         if first_packet:
@@ -113,7 +123,9 @@ def read_pcap_file_to_memory(file, hbm_size, logger):
         # this is because the AXI bux from the HBM inside the FPGA is 512 bit wide,
         # and the 100G CMAC is also 512bit aligned
         if (index + aligned_packet_len) < hbm_size:
-            buffer[index : index + aligned_packet_len] = copy.deepcopy(pkt_padded)
+            buffer[index : index + aligned_packet_len] = copy.deepcopy(
+                pkt_padded
+            )
             index += aligned_packet_len
             hbm_pkt_counter += 1
 
@@ -164,17 +176,23 @@ def calculate_sending_rate(
         ((pkt_size + 4 + 12 + 8) * 8 * pkts_per_burst) / (burst_gap_ns * 1e-9)
     ) / 1e9
     pps_rate = (1 / (burst_gap_ns * 1e-9)) / 1e6
-    logger.info("--------------------------------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------"
+    )
     logger.info(f"Packet size       : {pkt_size}B")
     logger.info(f"Packet per burst  : {pkts_per_burst}")
     logger.info(f"Burst Gap ns      : {burst_gap_ns} ns")
     logger.info(f"Number of packets : {number_of_packets}")
     logger.info(f"Loop              : {loop}")
-    logger.info("--------------------------------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------"
+    )
     logger.info(f"Sending rate      : {sending_rate:.5} Gbps")
     logger.info(f"PPS rate          : {pps_rate:.5} MPPS")
 
-    logger.info("--------------------------------------------------------------")
+    logger.info(
+        "--------------------------------------------------------------"
+    )
 
     return pps_rate, sending_rate
 
@@ -199,7 +217,10 @@ def main():
 
     # creating the driver object loads the xclbin file to the card (if needed)
     driver = ArgsXrt(
-        xcl_file=args.kernel, mem_config=memory, card=args.card, logger=my_logger
+        xcl_file=args.kernel,
+        mem_config=memory,
+        card=args.card,
+        logger=my_logger,
     )
     map_dir = os.path.dirname(args.kernel)
 
@@ -273,18 +294,26 @@ def main():
             fpga.timeslave.set_start_time(args.start_time)
 
     else:
-        my_logger.warning("PTP disabled or not available in this firmware image")
+        my_logger.warning(
+            "PTP disabled or not available in this firmware image"
+        )
 
     # Calculate the total number of AXI 64 byte transactions from the HBM that are
     # required for a complete burst
     expected_packets_per_burst = args.burst_size - 1
     expected_beats_per_packet = int(aligned_packet_len // 64) - 1
-    expected_number_beats_per_burst = int(expected_beats_per_packet * args.burst_size)
-    expected_total_number_of_bursts = (number_of_packets // args.burst_size) - 1
+    expected_number_beats_per_burst = int(
+        expected_beats_per_packet * args.burst_size
+    )
+    expected_total_number_of_bursts = (
+        number_of_packets // args.burst_size
+    ) - 1
     # Round it to an integer multiple
     number_of_packets = expected_total_number_of_bursts * args.burst_size
     total_time_per_loop_ns = expected_total_number_of_bursts * args.burst_gap
-    expected_number_of_loops = int(args.total_time * 1e9 // total_time_per_loop_ns) + 1
+    expected_number_of_loops = (
+        int(args.total_time * 1e9 // total_time_per_loop_ns) + 1
+    )
     expected_total_beats = (
         expected_number_beats_per_burst * expected_total_number_of_bursts
     ) - 1
@@ -316,7 +345,9 @@ def main():
     my_logger.debug(f"100G locked = {fpga.system.eth100g_locked.value} \n")
     if not fpga.system.eth100g_locked.value:
         my_logger.error("\n*** The 100G interface is not locked")
-        my_logger.error("*** Connect up to other device. No traffic will be generated.")
+        my_logger.error(
+            "*** Connect up to other device. No traffic will be generated."
+        )
         sys.exit(1)
 
     if not args.start_time:
@@ -325,12 +356,15 @@ def main():
             f"Resetting the TX State machine= {fpga.hbm_pktcontroller.start_stop_tx.value}"
         )
 
-    expected_tx_time_s = expected_number_of_loops * total_time_per_loop_ns / 1e9
+    expected_tx_time_s = (
+        expected_number_of_loops * total_time_per_loop_ns / 1e9
+    )
 
     if args.pcap:
         my_logger.info(f"Playing packets from file: {args.pcap.name}")
     my_logger.info(
-        "Total HBM memory usage: " f"{str_from_int_bytes(total_hbm_memory_usage)}"
+        "Total HBM memory usage: "
+        f"{str_from_int_bytes(total_hbm_memory_usage)}"
     )
     my_logger.info(f"Number of Loops: {expected_number_of_loops}")
     my_logger.info(f"Total transmit time: {expected_tx_time_s:.3f}s")
@@ -490,8 +524,12 @@ def configure_hpc(
     fpga.hbm_pktcontroller.expected_total_number_of_4k_axi = math.ceil(
         (((number_of_packets + 1) * aligned_packet_len) / 4096) - 1
     )
-    fpga.hbm_pktcontroller.expected_packets_per_burst = expected_packets_per_burst
-    fpga.hbm_pktcontroller.expected_beats_per_packet = expected_beats_per_packet
+    fpga.hbm_pktcontroller.expected_packets_per_burst = (
+        expected_packets_per_burst
+    )
+    fpga.hbm_pktcontroller.expected_beats_per_packet = (
+        expected_beats_per_packet
+    )
     fpga.hbm_pktcontroller.expected_number_beats_per_burst = (
         expected_number_beats_per_burst
     )
@@ -511,9 +549,9 @@ def configure_hpc(
 
 def write_and_verify_memory(driver, buffer):
     driver.write_memory(HBM_MEMORY_BUFFER, buffer.view(np.uint8))
-    driver_read = driver.read_memory(HBM_MEMORY_BUFFER, size_bytes=buffer.nbytes).view(
-        dtype=np.uint8
-    )
+    driver_read = driver.read_memory(
+        HBM_MEMORY_BUFFER, size_bytes=buffer.nbytes
+    ).view(dtype=np.uint8)
     logging.debug(
         f"n_bytes read from driver: {driver_read.nbytes}, input buffer: {buffer.nbytes}"
     )
@@ -525,7 +563,9 @@ def write_and_verify_memory(driver, buffer):
     )
     # Now verify the whole memory
     # (this will raise an exception and exit if a difference is found)
-    np.testing.assert_array_equal(buffer.view(np.uint32), driver_read.view(np.uint32))
+    np.testing.assert_array_equal(
+        buffer.view(np.uint32), driver_read.view(np.uint32)
+    )
 
 
 def create_argument_parser():
@@ -533,7 +573,9 @@ def create_argument_parser():
     parser = argparse.ArgumentParser(description="Alveo Burst NIC")
 
     # FPGA driver options
-    parser.add_argument("-f", "--kernel", type=str, help="path to xclbin kernel file")
+    parser.add_argument(
+        "-f", "--kernel", type=str, help="path to xclbin kernel file"
+    )
     parser.add_argument(
         "-d", "--card", default=0, type=int, help="index of card to use"
     )
@@ -593,7 +635,9 @@ def create_argument_parser():
     )
 
     # PTP options
-    parser.add_argument("--ptp-disable", action="store_true", help="Disable PTP")
+    parser.add_argument(
+        "--ptp-disable", action="store_true", help="Disable PTP"
+    )
     parser.add_argument(
         "--ptp-domain", type=int, help="PTP domain. Default: 24", default=24
     )
@@ -627,7 +671,9 @@ def time_str(value):
     try:
         return datetime.strptime(value, TIME_FORMAT)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"{value} is not a time like {TIME_FORMAT}")
+        raise argparse.ArgumentTypeError(
+            f"{value} is not a time like {TIME_FORMAT}"
+        )
 
 
 if __name__ == "__main__":

@@ -20,7 +20,11 @@ def main():
         "input", type=argparse.FileType("r"), help="Input pcap trace file"
     )
     argparser.add_argument(
-        "--port", "-p", type=int, default=36001, help="Port to use. Default: 36001"
+        "--port",
+        "-p",
+        type=int,
+        default=36001,
+        help="Port to use. Default: 36001",
     )
     argparser.add_argument(
         "--output",

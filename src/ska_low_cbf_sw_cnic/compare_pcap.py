@@ -25,9 +25,14 @@ def compare_n_packets(max_packets, packets, packets_capture, dport):
 
 
 def main():
-    argparser = argparse.ArgumentParser(description="Perentie PCAP comparator.")
+    argparser = argparse.ArgumentParser(
+        description="Perentie PCAP comparator."
+    )
     argparser.add_argument(
-        "input", type=argparse.FileType("r"), nargs=2, help="Input pcap trace files"
+        "input",
+        type=argparse.FileType("r"),
+        nargs=2,
+        help="Input pcap trace files",
     )
     argparser.add_argument(
         "--packets",

@@ -14,7 +14,10 @@ def main():
     # command line arguments
     parser = argparse.ArgumentParser(description="Interface Rate Monitor")
     parser.add_argument(
-        "interface", type=str, help="Ethernet Interface to monitor", default="1"
+        "interface",
+        type=str,
+        help="Ethernet Interface to monitor",
+        default="1",
     )
     args = parser.parse_args()
 
