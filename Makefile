@@ -14,7 +14,7 @@ CI_PROJECT_PATH_SLUG ?= ska-low-cbf-sw-cnic
 CI_ENVIRONMENT_SLUG ?= ska-low-cbf-sw-cnic
 
 # TODO - remove this after the code has been refactored & cleaned-up
-PYTHON_SWITCHES_FOR_PYLINT=--fail-under=6
+PYTHON_SWITCHES_FOR_PYLINT=--fail-under=5
 
 # define private overrides for above variables in here
 -include PrivateRules.mak
