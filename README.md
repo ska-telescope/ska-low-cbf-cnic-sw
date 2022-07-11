@@ -1,92 +1,138 @@
-# ska-low-cbf-cnic-sw
+# CNIC Control Software
 
+# Installation
 
+## End User
+Releases are [published via the SKA Central Artefact Repository](https://artefact.skao.int).
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/ska-telescope/low-cbf/ska-low-cbf-cnic-sw.git
-git branch -M main
-git push -uf origin main
+```commandline
+pip install ska-low-cbf-sw-cnic \
+  --extra-index-url https://artefact.skao.int/repository/pypi-internal/simple
 ```
 
-## Integrate with your tools
+More up-to-date development packages are available in
+[this project's package registry](https://gitlab.com/ska-telescope/low-cbf/ska-low-cbf-sw-cnic/-/packages).
+Note that a GitLab API token will be required for access.
 
-- [ ] [Set up project integrations](https://gitlab.com/ska-telescope/low-cbf/ska-low-cbf-cnic-sw/-/settings/integrations)
+## Developer
 
-## Collaborate with your team
+This repository uses [Poetry](https://python-poetry.org/), a python package
+and dependency manager, and [pre-commit](https://pre-commit.com/), a framework
+for managing git-commit hooks used here to check that committed code follows
+the project style guide.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+1. [Install Poetry](https://python-poetry.org/docs/#installation). Be sure to
+use "install\_poetry.py", not "get\_poetry.py" (the superseded installer).
+2. Run `poetry install` to install the project & its dependencies. Poetry
+uses the `pyproject.toml` file which lists required python tools and versions.
+3. [Install pre-commit](https://pre-commit.com/), which is a framework for
+managing actions invoked when `git commit` is run.
+4. Run `pre-commit install` to ensure your code will be correctly formatted
+when committing changes. Pre-commit sets up actions based on the
+`.pre-commit-config.yaml` file in the repository.
+5. A git hook is provided that may help comply with SKA commit message rules.
+You can install the hook with `cp -s "$(pwd)/resources/git-hooks"/* .git/hooks`.
+Once installed, the hook will insert commit messages to match the JIRA ticket
+from the branch name.
+e.g. On branch `perentie-1350-new-base-classes`:
+```console
+ska-low-cbf$ git commit -m "Add git hook note to README"
+Branch perentie-1350-new-base-classes
+Inserting PERENTIE-1350 prefix
+[perentie-1350-new-base-classes 3886657] PERENTIE-1350 Add git hook note to README
+ 1 file changed, 7 insertions(+)
+```
+You can see the modified message above, and confirming via the git log:
+```console
+ska-low-cbf$ git log -n 1 --oneline
+3886657 (HEAD -> perentie-1350-new-base-classes) PERENTIE-1350 Add git hook note to README
 
-## Test and Deploy
+# Usage
 
-Use the built-in continuous integration in GitLab.
+You'll need to source the XRT setup script before using these utilities.
+```commandline
+source /opt/xilinx/xrt/setup.sh
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+The following utilities are provided, each can be launched directly from the
+command line.
 
-***
+Use the `--help` flag to get more detailed (and up-to-date) usage instructions.
 
-# Editing this README
+## change\_port
+Change the port number in a pcap file.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+**Warning** the input file is loaded into memory in full.
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+```commandline
+change_port [-h] [--port PORT] [--output OUTPUT] input
+```
 
-## Name
-Choose a self-explaining name for your project.
+## compare\_pcap
+Find differences between two pcap files, checking only packets with a specified
+destination port.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+**Warning** both files are loaded into memory in full.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```commandline
+compare_pcap [-h] [--packets PACKETS] [--dport DPORT] [--report REPORT] input input
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## eth\_interface\_rate
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Monitor the transmit & recieve rates on an ethernet interface.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+**Warnings**
+* uses the sudo command
+* activates promiscuous mode on the interface
+* requires ethtool
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+```commandline
+eth_interface_rate [-h] interface
+```
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## pcap\_to\_hbm
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Transmit a pcap file via the Alveo's 100G Ethernet port.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+```commandline
+usage: pcap_to_hbm [-h] [-f KERNEL] [-d CARD] [-m MEMORY] [--burst-size BURST_SIZE] [--burst-gap BURST_GAP]
+                   [--total-time TOTAL_TIME] [--numpackets NUMPACKETS] [--loop] [--debugpkts DEBUGPKTS]
+                   [--ptp-domain PTP_DOMAIN] [--start-time START_TIME] [-v]
+                   [pcap]
+```
+``` e.g.
+  pcap_to_hbm --card 0 -f cnic.xclbin test/codif_sample.pcapng --start-time "2022-03-30 13:14:15.75"
+```
+# Road Map
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Some ideas for future work... consider all details suggestions subject to change,
+they're not set in stone!
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+* Split the load/monitoring parts of pcap\_to\_hbm into different programs.
+The user may want to start sending packets forever without blocking their terminal.
+  * `cnic_send` to perform the "load to HBM" and "begin transmit" functions
+  * `cnic_monitor` to launch the monitoring UI
+* HBM Packet Controller setup functions could be moved to HbmPacketController,
+rather than driving all registers individually/directly in the main program.
+* Controlling multiple FPGA cards with one instance of the program would be
+viable after doing some more refactoring. Could either use a loop over a list
+of `CnicFpga` objects or invent some FPGA group object to handle it.
+* pcap/pcapng detection is a bit crude, there may be a way to detect based on content
+rather than file extension?
+* There really should be a lot more tests!
+  * We might need ArgsSimulator to simulate HBM in order to test without an FPGA
+  * Adding tests that exercise a real FPGA may be easier, and a good idea in any case...
+* A program to control capturing of packets (when FPGA images supports same)
+* Configuration of inter-packet gaps (i.e. jitter, maybe a Poisson distribution)
+* Record statistics over time, so they can be graphed
+  * Sampling statistics in the FPGA would be more accurate, we could download
+when ready, in batches, whatever
+* A software utility could be provided to download the latest xclbin file,
+after that has been published somewhere... (or it could perhaps be bundled up
+with the python package?)
 
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+# Changelog
+### 0.2.5
+- Add option to disable PTP
+- Move to SKA repo

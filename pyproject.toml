@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "ska_low_cbf_sw_cnic"
+version = "0.2.5"
+description = "Alveo Burst NIC Control Software"
+authors = ["Andrew Bolin, Jason van Aardt, CSIRO"]
+license = "CSIRO Open Source Software Licence"
+packages = [{include = "ska_low_cbf_sw_cnic", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+ska-low-cbf-fpga = "^0.14.2"
+dpkt = "^1.9.7"
+scapy = "^2.4.5"
+rich = "^12.0.1"
+fxpmath = "^0.4.5"
+
+[tool.poetry.dev-dependencies]
+pre-commit = "^2.16.0"
+black = "^22"
+pytest = "^6.2.5"
+isort = "^5.9.3"
+pylint = "^2.12.2"
+
+[tool.poetry.scripts]
+change_port = "ska_low_cbf_sw_cnic.change_port:main"
+compare_pcap = "ska_low_cbf_sw_cnic.compare_pcap:main"
+eth_interface_rate = "ska_low_cbf_sw_cnic.eth_interface_rate:main"
+pcap_to_hbm = "ska_low_cbf_sw_cnic.pcap_to_hbm:main"
+
+[[tool.poetry.source]]
+name = "ska"
+url = "https://artefact.skao.int/repository/pypi-internal/simple"
+secondary = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
+src_paths = ["src/ska_low_cbf_sw_cnic", "tests"]

@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# A hook script to prepare the commit log message.
+# Called by "git commit" with the name of the file that has the
+# commit message, followed by the description of the commit
+# message's source.  The hook's purpose is to edit the commit
+# message file.  If the hook fails with a non-zero status,
+# the commit is aborted.
+#
+# To enable this hook, save this file to ".git/hooks/prepare-commit-msg".
+#
+# If you're in a branch named like "jira_prefix-123-whatever-else",
+# this will prepend your commit message with "JIRA_PREFIX-123 "
+# (if you haven't already put that string in there)
+# based on: https://mincong.io/2019/07/23/prepare-commit-message-using-git-hook/
+
+JIRA_PREFIX=perentie
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+if [[ "$COMMIT_SOURCE" == "message" || -z "$COMMIT_SOURCE" ]]; then
+    # process messages from 'git commit -m' or 'git commit'
+    ref=$(git rev-parse --abbrev-ref HEAD)
+    echo "Branch $ref"
+    if [[ "$ref" =~ ^.*($JIRA_PREFIX-[0-9]+).* ]]; then
+        # convert ticket to upper case
+        ticket=$(echo "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')
+        original_msg=$(cat "$COMMIT_MSG_FILE")
+        if [[ ! "$original_msg" =~ "$ticket" ]]; then
+            echo "Inserting $ticket prefix"
+            echo -n "$ticket " > "$COMMIT_MSG_FILE"
+            echo "$original_msg" >> "$COMMIT_MSG_FILE"
+        else
+            echo "Ticket already in message :)"
+        fi
+    fi
+fi
