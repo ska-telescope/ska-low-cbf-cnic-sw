@@ -1,0 +1,6 @@
+[flake8]
+exclude = .git,__pycache__,__init__.py,.mypy_cache,.pytest_cache,.feature,.json,.yaml
+ignore = E501,E203,W503
+
+per-file-ignores =
+    tests/fpgamap_22032914.py: E501
