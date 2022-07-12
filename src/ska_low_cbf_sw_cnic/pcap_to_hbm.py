@@ -569,7 +569,7 @@ def write_and_verify_memory(driver, buffer):
 
 def create_argument_parser():
     """Configure command-line"""
-    parser = argparse.ArgumentParser(description="Alveo Burst NIC")
+    parser = argparse.ArgumentParser(description="CNIC")
 
     # FPGA driver options
     parser.add_argument(

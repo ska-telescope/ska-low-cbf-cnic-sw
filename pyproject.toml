@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "ska_low_cbf_sw_cnic"
 version = "0.2.5"
-description = "Alveo Burst NIC Control Software"
+description = "CNIC Control Software"
 authors = ["Andrew Bolin, Jason van Aardt, CSIRO"]
 license = "CSIRO Open Source Software Licence"
 packages = [{include = "ska_low_cbf_sw_cnic", from = "src"}]

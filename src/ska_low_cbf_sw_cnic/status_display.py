@@ -211,7 +211,7 @@ def update_layout(
 
 
 def update_static_info(layout: Layout, static_info: DisplayStaticInfo):
-    heading = Text("Alveo Burst NIC Monitor", justify="center")
+    heading = Text("CNIC Monitor", justify="center")
     heading.stylize("bold cyan")
     layout["head"].update(heading)
     layout["foot"].update(Text(static_info.filename))
