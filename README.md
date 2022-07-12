@@ -5,7 +5,7 @@
 ## End User
 Releases are [published via the SKA Central Artefact Repository](https://artefact.skao.int).
 
-```commandline
+```console
 pip install ska-low-cbf-sw-cnic \
   --extra-index-url https://artefact.skao.int/repository/pypi-internal/simple
 ```
@@ -46,11 +46,12 @@ You can see the modified message above, and confirming via the git log:
 ```console
 ska-low-cbf$ git log -n 1 --oneline
 3886657 (HEAD -> perentie-1350-new-base-classes) PERENTIE-1350 Add git hook note to README
+```
 
 # Usage
 
 You'll need to source the XRT setup script before using these utilities.
-```commandline
+```console
 source /opt/xilinx/xrt/setup.sh
 ```
 
@@ -64,7 +65,7 @@ Change the port number in a pcap file.
 
 **Warning** the input file is loaded into memory in full.
 
-```commandline
+```console
 change_port [-h] [--port PORT] [--output OUTPUT] input
 ```
 
@@ -74,7 +75,7 @@ destination port.
 
 **Warning** both files are loaded into memory in full.
 
-```commandline
+```console
 compare_pcap [-h] [--packets PACKETS] [--dport DPORT] [--report REPORT] input input
 ```
 
@@ -87,7 +88,7 @@ Monitor the transmit & recieve rates on an ethernet interface.
 * activates promiscuous mode on the interface
 * requires ethtool
 
-```commandline
+```console
 eth_interface_rate [-h] interface
 ```
 
@@ -95,13 +96,14 @@ eth_interface_rate [-h] interface
 
 Transmit a pcap file via the Alveo's 100G Ethernet port.
 
-```commandline
+```console
 usage: pcap_to_hbm [-h] [-f KERNEL] [-d CARD] [-m MEMORY] [--burst-size BURST_SIZE] [--burst-gap BURST_GAP]
                    [--total-time TOTAL_TIME] [--numpackets NUMPACKETS] [--loop] [--debugpkts DEBUGPKTS]
                    [--ptp-domain PTP_DOMAIN] [--start-time START_TIME] [-v]
                    [pcap]
 ```
-``` e.g.
+e.g.
+```console
   pcap_to_hbm --card 0 -f cnic.xclbin test/codif_sample.pcapng --start-time "2022-03-30 13:14:15.75"
 ```
 # Road Map
