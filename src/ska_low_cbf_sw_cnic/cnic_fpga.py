@@ -11,6 +11,7 @@ CNIC FPGA Firmware ICL (Instrument Control Layer)
 import logging
 import threading
 import typing
+from datetime import datetime
 
 from ska_low_cbf_fpga import ArgsFpgaInterface, ArgsMap, FpgaPersonality
 
@@ -38,16 +39,37 @@ class CnicFpga(FpgaPersonality):
         ],
         map_: ArgsMap,
         logger: logging.Logger = None,
+        ptp_domain: int = 24,
     ) -> None:
         """
         Constructor
         :param interfaces: see FpgaPersonality
         :param map_:  see FpgaPersonality
         :param logger: see FpgaPersonality
+        :param ptp_domain: PTP domain number
         """
         super().__init__(interfaces, map_, logger)
+        self._configure_ptp(ptp_domain)
         self._rx_cancel = threading.Event()
         self._rx_thread = None
+
+    def _configure_ptp(self, ptp_domain: int):
+        alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
+        alveo_mac = alveo_macs[0]
+        # MAC is str, colon-separated hex bytes "01:02:03:04:05:06"
+        self._logger.info("Alveo MAC address:", alveo_mac)
+        # take low 3 bytes of mac, convert to int
+        alveo_mac_low = int("".join(alveo_mac.split(":")[-3:]), 16)
+        # configure the PTP core to use the same low 3 MAC bytes
+        # (high bytes are set by the PTP core)
+        self.timeslave.startup(alveo_mac_low, ptp_domain)
+        self._logger.info(
+            "  PTP MAC address:",
+            "DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
+            + ":".join(
+                f"{alveo_mac_low:06x}"[_ : _ + 2] for _ in range(0, 6, 2)
+            ).upper(),
+        )
 
     def transmit_pcap(
         self,
@@ -55,6 +77,7 @@ class CnicFpga(FpgaPersonality):
         n_loops: int = 1,
         burst_size: int = 1,
         burst_gap: int = 1000,
+        start_time: typing.Union[datetime, None] = None,
     ) -> None:
         """
         Transmit packets from a PCAP file
@@ -62,11 +85,16 @@ class CnicFpga(FpgaPersonality):
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: time between bursts of packets (nanoseconds)
+        :param start_time: optional time to begin transmission at
+        (default None means begin immediately)
         :return:
         """
         self.hbm_pktcontroller.load_pcap(in_file)
         self.hbm_pktcontroller.configure_tx(n_loops, burst_size, burst_gap)
-        self.hbm_pktcontroller.start_tx()
+        if start_time:
+            self.timeslave.set_start_time(start_time)
+        else:
+            self.hbm_pktcontroller.start_tx()
 
     def receive_pcap(
         self, out_file: typing.BinaryIO, packet_size: int
