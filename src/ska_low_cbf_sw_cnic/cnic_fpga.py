@@ -57,15 +57,15 @@ class CnicFpga(FpgaPersonality):
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
         alveo_mac = alveo_macs[0]
         # MAC is str, colon-separated hex bytes "01:02:03:04:05:06"
-        self._logger.info("Alveo MAC address:", alveo_mac)
+        self._logger.info(f"Alveo MAC address: {alveo_mac}")
         # take low 3 bytes of mac, convert to int
         alveo_mac_low = int("".join(alveo_mac.split(":")[-3:]), 16)
         # configure the PTP core to use the same low 3 MAC bytes
         # (high bytes are set by the PTP core)
         self.timeslave.startup(alveo_mac_low, ptp_domain)
         self._logger.info(
-            "  PTP MAC address:",
-            "DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
+            "  PTP MAC address:"
+            + "DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
             + ":".join(
                 f"{alveo_mac_low:06x}"[_ : _ + 2] for _ in range(0, 6, 2)
             ).upper(),
