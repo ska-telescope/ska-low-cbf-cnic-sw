@@ -121,7 +121,7 @@ class HbmPacketController(FpgaPeripheral):
     def dump_pcap(
         self,
         out_file: typing.BinaryIO,
-        packet_size: int = 8192,
+        packet_size: int,
         ng: bool = True,
     ) -> None:
         """
@@ -134,6 +134,8 @@ class HbmPacketController(FpgaPeripheral):
             writer = dpkt.pcapng.Writer(out_file)
         else:
             writer = dpkt.pcap.Writer(out_file)
+
+        # TODO - there will be an "end of data" value to give a stopping point...
 
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
@@ -225,3 +227,15 @@ class HbmPacketController(FpgaPeripheral):
         """
         self.start_stop_tx = 0
         self.start_stop_tx = 1
+
+    def start_rx(self, packet_size: int) -> None:
+        """
+        Start receiving packets into FPGA memory
+        :param packet_size: only packets of this exact size are captured (bytes)
+        """
+        # TODO - register names not yet defined?
+        # self.enable_capture = 0
+        # self.rx_packet_size = packet_size
+        # self.rx_reset = 1
+        # self.rx_rest = 0
+        # self.enable_capture = 1
