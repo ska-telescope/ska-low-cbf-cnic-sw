@@ -1,3 +1,17 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2022 CSIRO Space and Astronomy.
+#
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
+
+# we use dynamic attributes that confuse pylint...
+# pylint: disable=attribute-defined-outside-init
+"""
+HBM Packet Controller ICL (abstraction)
+"""
+
+import bisect
 import math
 import os
 import typing
@@ -12,20 +26,22 @@ AXI_TRANSACTION_SIZE = 4096
 BEAT_SIZE = 64
 
 
-def _get_padded_size(packet_size: int):
+def _get_padded_size(packet_size: int) -> int:
     """
     Round up the packet size to the next 'beat's worth of data
     :param packet_size: bytes
-    :return:
     """
     pad_length = 0
     if packet_size % BEAT_SIZE:
         pad_length = BEAT_SIZE - (packet_size % BEAT_SIZE)
-    packet_padded_size = packet_size + pad_length
-    return packet_padded_size
+    return packet_size + pad_length
 
 
 class HbmPacketController(FpgaPeripheral):
+    """
+    Class to represent an HbmPacketController FPGA Peripheral
+    """
+
     def __init__(
         self,
         interfaces: typing.Union[
@@ -33,13 +49,29 @@ class HbmPacketController(FpgaPeripheral):
         ],
         map_field_info: typing.Dict[str, ArgsFieldInfo],
         default_interface: str = "__default__",
-    ):
+    ) -> None:
         super().__init__(interfaces, map_field_info, default_interface)
         self._packets_to_transmit = 0
         """Number of packets to transmit"""
 
+        # we don't have nice interface to find the actual size of the buffers...
+        self._fpga_interface = self._interfaces[self._default_interface]
+        # skip the first buffer (ARGS interchange),
+        # get the sizes of all other shared buffers
+        hbm_sizes = [
+            _.size for _ in self._fpga_interface._mem_config[1:] if _.shared
+        ]
+        # convert sizes to a list of virtual end addresses of each buffer
+        # e.g. [1000, 1000, 1000] => [1000, 2000, 3000]
+        hbm_end_addresses = np.cumsum(hbm_sizes)
+        # insert a zero for the first buffer's start address: [0, 1000, 2000, 3000]
+        self._buffer_offsets = np.insert(hbm_end_addresses, 0, 0)
+        """Virtual addresses of start/end of each HBM buffer
+        (Note: n+1 elements, last element is end of last buffer)"""
+
     @property
-    def packet_count(self):
+    def packet_count(self) -> IclField[int]:
+        """Get 64-bit total packet count"""
         return IclField(
             description="Total Packet Count",
             type_=int,
@@ -47,27 +79,64 @@ class HbmPacketController(FpgaPeripheral):
             + self.current_pkt_count_low.value,
         )
 
-    def dump_pcap(
-        self,
-        filename: str,
-        buffer: int = 1,  # TODO, remove arg, add rollover between 4x buffers
-        packet_size: int = 8192,
-        ng: bool = True,
-    ):
+    def _virtual_write(self, data: bytes, address: int) -> None:
         """
-        Dump a PCAP(NG) file from HBM
-        :param filename: Output file path
-        :param buffer: HBM buffer index
-        :param packet_size: Number of Bytes used for each packet
-        :param ng: PCAP Next-Generation? (False = original pcap)
+        Simple virtual address mapper for writing to multiple HBM buffers.
+        :param data: bytes object to write
+        :param address: byte-based address
         :return:
         """
-        with open(filename, "wb") as out_file:
-            if ng:
-                writer = dpkt.pcapng.Writer(out_file)
-            else:
-                writer = dpkt.pcap.Writer(out_file)
+        data = np.frombuffer(data, dtype=np.uint8)
+        # Note bisect works here because our first buffer to use is memory 1
+        # (would need to add an offset if this was not the case)
+        # e.g. if _buffer_offsets is [0, 1000, 2000, 3000]
+        # address 50 will return 1; address 1500 will return 2
+        start_buffer = bisect.bisect(self._buffer_offsets, address)
+        end_buffer = bisect.bisect(self._buffer_offsets, address + len(data))
+        if end_buffer >= len(self._buffer_offsets):
+            raise RuntimeError(
+                f"Cannot fit {len(data)} bytes "
+                f"starting from virtual address {address}. "
+                f"Buffers end at {self._buffer_offsets[-1]}."
+            )
 
+        start_offset = address - self._buffer_offsets[start_buffer - 1]
+        if start_buffer == end_buffer:
+            # the easy case - everything in one buffer
+            self._fpga_interface.write_memory(start_buffer, data, start_offset)
+        else:
+            # split across buffers, assuming buffer size >> data size
+            # how much room is left in the first buffer?
+            first_size = (  # calculate buffer size from address map
+                self._buffer_offsets[start_buffer]
+                - self._buffer_offsets[start_buffer - 1]
+            ) - start_offset
+            self._fpga_interface.write_memory(
+                start_buffer, data[:first_size], start_offset
+            )
+            self._fpga_interface.write_memory(
+                start_buffer + 1, data[first_size:], 0
+            )
+
+    def dump_pcap(
+        self,
+        out_file: typing.BinaryIO,
+        packet_size: int = 8192,
+        ng: bool = True,
+    ) -> None:
+        """
+        Dump a PCAP(NG) file from HBM
+        :param out_file: File object to write to
+        :param packet_size: Number of Bytes used for each packet
+        :param ng: PCAP Next-Generation? (False = original pcap)
+        """
+        if ng:
+            writer = dpkt.pcapng.Writer(out_file)
+        else:
+            writer = dpkt.pcap.Writer(out_file)
+
+        # start from 1 as our first buffer is #1
+        for buffer in range(1, len(self._buffer_offsets)):
             raw = (
                 self._interfaces[self._default_interface]
                 .read_memory(buffer)
@@ -82,25 +151,23 @@ class HbmPacketController(FpgaPeripheral):
             for packet in raw:
                 writer.writepkt(packet.tobytes())
 
-    def load_pcap(self, file: typing.BinaryIO):
+    def load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
-
-        :param file: input PCAP(NG) file
-        :return:
+        Load a PCAP(NG) file from disk to FPGA
+        :param in_file: input PCAP(NG) file
         """
         # TODO is there a better way to detect the file format?
-        if os.path.splitext(file.name)[1] == ".pcapng":
+        if os.path.splitext(in_file.name)[1] == ".pcapng":
             reader = dpkt.pcapng.Reader
         else:
             reader = dpkt.pcap.Reader
 
-        buffer = 1  # TODO rollover between 4x buffers
         first_packet = True
-        offset = 0  # byte address to write to
+        virtual_address = 0  # byte address to write to
         packet_padded_size = 0
         n_packets = 0
         packet_size = 0
-        for timestamp, packet in reader(file):
+        for timestamp, packet in reader(in_file):
             # assess first packet,
             # firmware assumes all packets are same size
             if first_packet:
@@ -113,11 +180,9 @@ class HbmPacketController(FpgaPeripheral):
 
             # not sure if writing each packet is better or worse than creating yet
             # another memory buffer...
-            self._interfaces[self._default_interface].write_memory(
-                buffer, packet, offset
-            )
+            self._virtual_write(packet, virtual_address)
             n_packets += 1
-            offset += packet_padded_size
+            virtual_address += packet_padded_size
 
         self._packets_to_transmit = n_packets  # TODO move to FPGA?
         self.packet_size = packet_size
@@ -126,7 +191,12 @@ class HbmPacketController(FpgaPeripheral):
             (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
         )
 
-    def configure_tx(self, n_loops: int = 1, burst_size: int = 1):
+    def configure_tx(self, n_loops: int = 1, burst_size: int = 1) -> None:
+        """
+        Configure packet transmission parameters
+        :param n_loops: number of loops
+        :param burst_size: packets per burst
+        """
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
@@ -148,6 +218,9 @@ class HbmPacketController(FpgaPeripheral):
         # TODO -
         #  time_between_bursts_ns
 
-    def start_tx(self):
+    def start_tx(self) -> None:
+        """
+        Start transmitting packets
+        """
         self.start_stop_tx = 0
         self.start_stop_tx = 1
