@@ -191,15 +191,19 @@ class HbmPacketController(FpgaPeripheral):
             (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
         )
 
-    def configure_tx(self, n_loops: int = 1, burst_size: int = 1) -> None:
+    def configure_tx(
+        self, n_loops: int = 1, burst_size: int = 1, burst_gap: int = 1000
+    ) -> None:
         """
         Configure packet transmission parameters
         :param n_loops: number of loops
         :param burst_size: packets per burst
+        :param burst_gap: time between bursts of packets (nanoseconds)
         """
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
+        self.time_between_bursts_ns = burst_gap
         self.expected_packets_per_burst = burst_size
         self.expected_number_beats_per_burst = (
             self.expected_beats_per_packet * burst_size
@@ -214,9 +218,6 @@ class HbmPacketController(FpgaPeripheral):
         if n_loops > 1:
             self.loop_tx = True
             self.expected_number_of_loops = n_loops
-
-        # TODO -
-        #  time_between_bursts_ns
 
     def start_tx(self) -> None:
         """
