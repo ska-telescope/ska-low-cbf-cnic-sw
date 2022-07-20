@@ -79,14 +79,13 @@ class HbmPacketController(FpgaPeripheral):
             + self.current_pkt_count_low.value,
         )
 
-    def _virtual_write(self, data: bytes, address: int) -> None:
+    def _virtual_write(self, data: np.ndarray, address: int) -> None:
         """
         Simple virtual address mapper for writing to multiple HBM buffers.
-        :param data: bytes object to write
+        :param data: numpy array to write
         :param address: byte-based address
         :return:
         """
-        data = np.frombuffer(data, dtype=np.uint8)
         # Note bisect works here because our first buffer to use is memory 1
         # (would need to add an offset if this was not the case)
         # e.g. if _buffer_offsets is [0, 1000, 2000, 3000]
@@ -122,36 +121,36 @@ class HbmPacketController(FpgaPeripheral):
         self,
         out_file: typing.BinaryIO,
         packet_size: int,
-        ng: bool = True,
     ) -> None:
         """
         Dump a PCAP(NG) file from HBM
-        :param out_file: File object to write to
+        :param out_file: File object to write to.
+        File type determined by extension, use .pcapng for next-gen.
         :param packet_size: Number of Bytes used for each packet
-        :param ng: PCAP Next-Generation? (False = original pcap)
         """
-        if ng:
+        if os.path.splitext(out_file.name)[1] == ".pcapng":
             writer = dpkt.pcapng.Writer(out_file)
         else:
             writer = dpkt.pcap.Writer(out_file)
 
         # TODO - there will be an "end of data" value to give a stopping point...
+        padded_packet_size = _get_padded_size(packet_size)
 
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
             raw = (
                 self._interfaces[self._default_interface]
                 .read_memory(buffer)
-                .astype(np.uint8)
+                .view(dtype=np.uint8)
             )
-            # ensure number of data bytes is an integer multiple of packet_size,
-            # by discarding the remainder from the end
-            if raw.nbytes % packet_size:
-                raw = raw[: -(raw.nbytes % packet_size)]
+            # ensure number of data bytes is an integer multiple of
+            # padded_packet_size, by discarding the remainder from the end
+            if raw.nbytes % padded_packet_size:
+                raw = raw[: -(raw.nbytes % padded_packet_size)]
 
-            raw.shape = (raw.nbytes // packet_size, packet_size)
+            raw.shape = (raw.nbytes // padded_packet_size, padded_packet_size)
             for packet in raw:
-                writer.writepkt(packet.tobytes())
+                writer.writepkt(packet[:packet_size].tobytes())
 
     def load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
@@ -176,13 +175,18 @@ class HbmPacketController(FpgaPeripheral):
                 packet_size = len(packet)
                 packet_padded_size = _get_padded_size(packet_size)
                 first_packet = False
+                print(
+                    f"Packet size: {packet_size}, padded: {packet_padded_size}"
+                )
+                print("Raw packet (top 64 Bytes):")
+                print(packet[:64])
+                padded_packet = np.zeros(packet_padded_size, dtype=np.uint8)
 
             # TODO do we need to check that it's a valid ethernet packet?
             #  - and verify the length?
 
-            # not sure if writing each packet is better or worse than creating yet
-            # another memory buffer...
-            self._virtual_write(packet, virtual_address)
+            padded_packet[:packet_size] = np.frombuffer(packet, dtype=np.uint8)
+            self._virtual_write(padded_packet, virtual_address)
             n_packets += 1
             virtual_address += packet_padded_size
 
