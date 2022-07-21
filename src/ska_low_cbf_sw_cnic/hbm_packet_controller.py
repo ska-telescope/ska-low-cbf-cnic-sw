@@ -175,11 +175,6 @@ class HbmPacketController(FpgaPeripheral):
                 packet_size = len(packet)
                 packet_padded_size = _get_padded_size(packet_size)
                 first_packet = False
-                print(
-                    f"Packet size: {packet_size}, padded: {packet_padded_size}"
-                )
-                print("Raw packet (top 64 Bytes):")
-                print(packet[:64])
                 padded_packet = np.zeros(packet_padded_size, dtype=np.uint8)
 
             # TODO do we need to check that it's a valid ethernet packet?

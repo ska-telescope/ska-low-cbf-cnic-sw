@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ska_low_cbf_sw_cnic"
-version = "0.2.5"
+version = "0.3.0"
 description = "CNIC Control Software"
 authors = ["Andrew Bolin, Jason van Aardt, CSIRO"]
 license = "CSIRO Open Source Software Licence"
@@ -8,7 +8,7 @@ packages = [{include = "ska_low_cbf_sw_cnic", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-ska-low-cbf-fpga = "^0.14.2"
+ska-low-cbf-fpga = "^0.14.3"
 dpkt = "^1.9.7"
 scapy = "^2.4.5"
 rich = "^12.0.1"
@@ -38,6 +38,7 @@ change_port = "ska_low_cbf_sw_cnic.change_port:main"
 compare_pcap = "ska_low_cbf_sw_cnic.compare_pcap:main"
 eth_interface_rate = "ska_low_cbf_sw_cnic.eth_interface_rate:main"
 pcap_to_hbm = "ska_low_cbf_sw_cnic.pcap_to_hbm:main"
+cnic = "ska_low_cbf_sw_cnic.__main__:main"
 
 [[tool.poetry.source]]
 name = "ska"

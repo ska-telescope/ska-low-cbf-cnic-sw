@@ -60,6 +60,44 @@ command line.
 
 Use the `--help` flag to get more detailed (and up-to-date) usage instructions.
 
+## Debug Console & Register Viewer
+
+Executing the module directly provides a command line interface with debug
+console and interactive register view functions.
+
+```console
+useage: cnic [-h] [-f KERNEL] [-d CARDS [CARDS ...]] [-m MEMORY] [--driver DRIVER]
+             [-s SIMULATE] [-r REGISTERS] [-i] [-c] [-e EXEC] [--ptp-domain PTP_DOMAIN]
+
+ska-low-cbf FPGA Command-Line Utility
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f KERNEL, --kernel KERNEL
+                        path to xclbin kernel file
+  -d CARDS [CARDS ...], --cards CARDS [CARDS ...]
+                        indexes of cards to use
+  -m MEMORY, --memory MEMORY
+                        (HBM) memory configuration <size><unit><s|i> size: int unit: k, M, G (powers of 1024) s: shared i:
+                        FPGA internal e.g. '128Ms:1Gi'
+  --driver DRIVER       Select driver (xrt/cl) [default xrt, ignored if simulate set]
+  -s SIMULATE, --simulate SIMULATE
+                        path to fpgamap_nnnnnnnn.py file to simulate
+  -r REGISTERS, --registers REGISTERS
+                        register setting text file to load
+  -i, --interactive     use interactive interface
+  -c, --console         use IPython console
+  -e EXEC, --exec EXEC  Python file to execute
+
+CNIC:
+  CNIC-specific Arguments
+
+  --ptp-domain PTP_DOMAIN
+                        PTP domain. Default: 24
+```
+
+Inside the debug console, use `fpgas` or `fpga` to access the FPGA(s).
+
 ## change\_port
 Change the port number in a pcap file.
 
@@ -135,6 +173,9 @@ after that has been published somewhere... (or it could perhaps be bundled up
 with the python package?)
 
 # Changelog
+### 0.3.0 (unreleased)
+- Add pcap load/dump methods to HbmPacketController and CnicFpga
+- Use new command-line infrastructure from ska-low-cbf-fpga
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo
