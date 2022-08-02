@@ -137,7 +137,6 @@ class HbmPacketController(FpgaPeripheral):
         last_partial_packet = None
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
-            print(f"Processing memory buffer #{buffer}")
             if buffer == 1:
                 end = self.rx_1st_4gb_rx_addr.value
             elif buffer == 2:
@@ -149,40 +148,27 @@ class HbmPacketController(FpgaPeripheral):
             else:
                 raise NotImplementedError(f"Haven't coded buffer {buffer} yet")
 
-            print(f"Will read {end} B")
+            if end == 0:
+                # No data in this buffer, so we have already processed the last packet
+                break
+
             raw = (
                 self._interfaces[self._default_interface]
                 .read_memory(buffer, end)
                 .view(dtype=np.uint8)
             )
-            print(f"Read {raw.nbytes} B")
 
             if last_partial_packet is not None:
-                print(
-                    f"Inserting trim from last time, {last_partial_packet.nbytes} B"
-                )
+                # insert tail of last buffer into head of this one
                 raw = np.insert(raw, 0, last_partial_packet)
-                print(f"Now have {raw.nbytes} B")
 
             # ensure number of data bytes is an integer multiple of
             # padded_packet_size, by discarding the remainder from the end
             if raw.nbytes % padded_packet_size:
-                print(
-                    f"Data is not a multiple of padded_packet_size {padded_packet_size}"
-                )
                 discard_bytes = raw.nbytes % padded_packet_size
-                print(f"trimming {discard_bytes} from tail")
                 # save the partial packet for next loop
                 last_partial_packet = raw[-discard_bytes:]
-                # memory is written in 4k chunks
-                # TODO  - this is a gnarly hack
-                #  the FPGA should be updated so we don't need this
-                # last_partial_packet = raw[:4096]
-
-                print(f"trimmed {last_partial_packet.nbytes} B")
-                print(last_partial_packet)
                 raw = raw[:-discard_bytes]
-                print(f"Data is now {raw.nbytes} B")
             else:
                 last_partial_packet = None
 
