@@ -142,6 +142,10 @@ class HbmPacketController(FpgaPeripheral):
                 end = self.rx_1st_4gb_rx_addr.value
             elif buffer == 2:
                 end = self.rx_2nd_4gb_rx_addr.value
+            elif buffer == 3:
+                end = self.rx_3rd_4gb_rx_addr.value
+            elif buffer == 4:
+                end = self.rx_4th_4gb_rx_addr.value
             else:
                 raise NotImplementedError(f"Haven't coded buffer {buffer} yet")
 
@@ -270,4 +274,4 @@ class HbmPacketController(FpgaPeripheral):
         self.rx_packet_size = packet_size
         self.rx_reset_capture = 1
         self.rx_reset_capture = 0
-        self.enable_capture = 1
+        self.rx_enable_capture = 1
