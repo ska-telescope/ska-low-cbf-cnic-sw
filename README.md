@@ -1,5 +1,7 @@
 # CNIC Control Software
 
+[![Documentation Status](https://readthedocs.org/projects/ska-telescope-ska-low-cbf-sw-cnic/badge/?version=latest)](https://ska-telescope-ska-low-cbf-sw-cnic.readthedocs.io/en/latest/?badge=latest)
+
 # Installation
 
 ## End User
