@@ -265,13 +265,15 @@ class HbmPacketController(FpgaPeripheral):
         self.start_stop_tx = 0
         self.start_stop_tx = 1
 
-    def start_rx(self, packet_size: int) -> None:
+    def start_rx(self, packet_size: int, n_packets: int = 0) -> None:
         """
         Start receiving packets into FPGA memory
         :param packet_size: only packets of this exact size are captured (bytes)
+        :param n_packets: number of packets to receive
         """
         self.rx_enable_capture = 0
         self.rx_packet_size = packet_size
+        self.rx_packets_to_capture = n_packets
         self.rx_reset_capture = 1
         self.rx_reset_capture = 0
         self.rx_enable_capture = 1
