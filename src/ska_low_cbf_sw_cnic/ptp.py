@@ -4,6 +4,9 @@
 #
 # Distributed under the terms of the CSIRO Open Source Software Licence Agreement
 # See LICENSE for more info.
+"""
+PTP Peripheral ICL
+"""
 from datetime import datetime
 from enum import IntEnum
 
@@ -21,13 +24,21 @@ class PtpCommand(IntEnum):
     PTP_MODE = 6
 
 
-# FXP data type used for subseconds
-FRACTION_FXP_TYPE = "U0.32"  # no integer component, 32b fractional
+TIMESTAMP_BITS = 80
+TIMESTAMP_FRACTIONAL_BITS = 32
+# 48 bits integer, 32 bits fractional
+TS_FXP_TYPE = f"U{TIMESTAMP_BITS - TIMESTAMP_FRACTIONAL_BITS}.{TIMESTAMP_FRACTIONAL_BITS}"
+# FXP data type used for subseconds: no integer component, 32b fractional
+FRACTION_FXP_TYPE = f"U0.{TIMESTAMP_FRACTIONAL_BITS}"
 
 
-def convert_fractional_binary(x):
-    """Take a 32 bit sub-second value and return as float"""
-    return
+def unix_ts_from_ptp(ptp_timestamp: int) -> float:
+    """Get UNIX timestamp from 80 bit PTP value"""
+    return Fxp(
+        ptp_timestamp,
+        dtype=TS_FXP_TYPE,
+        raw=True,
+    ).get_val()
 
 
 class Ptp(FpgaPeripheral):
@@ -133,6 +144,7 @@ class Ptp(FpgaPeripheral):
 
     @property
     def mac_address(self):
+        """Get MAC address"""
         return IclField(
             value="DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
             + ":".join(
@@ -144,6 +156,7 @@ class Ptp(FpgaPeripheral):
 
     @property
     def time(self) -> IclField[int]:
+        """Get current time (UNIX ts)"""
         return IclField(
             value=(
                 (self.current_ptp_seconds_upper.value << 32)
@@ -153,20 +166,26 @@ class Ptp(FpgaPeripheral):
             type_=int,
         )
 
-    def command(self, cmd: PtpCommand):
+    def command(self, cmd: PtpCommand) -> None:
+        """Execute a PTP command"""
         self.cmd = cmd.value
         self.cmd_seq += 1
 
     def startup(self, mac_address: int = 0x010203, domain: int = 1) -> None:
         """
         Start PTP
+        :param domain: PTP domain
         :param mac_address: MAC address, only the low 3 bytes are used.
         """
         self.profile_domain_num = domain
         self.user_mac_address = mac_address
         self.command(PtpCommand.RELOAD_PROFILE)
 
-    def set_start_time(self, start_time: datetime):
+    def set_start_time(self, start_time: datetime) -> None:
+        """
+        Schedule a transmission start time
+        :param start_time: time to start at
+        """
         seconds, fractional_seconds = divmod(start_time.timestamp(), 1)
         seconds = int(seconds)
         self.schedule_ptp_seconds_upper = seconds >> 32
@@ -180,18 +199,22 @@ class Ptp(FpgaPeripheral):
         self.schedule_control = 3  # bits 0 (reset) & 1 (start)
 
     @property
+    def _scheduled_ptp_timestamp(self) -> int:
+        """Get scheduled start time as PTP (80 bit) timestamp"""
+        integer_part = (
+            self.schedule_ptp_seconds_upper.value << 32
+        ) | self.schedule_ptp_seconds_lower.value
+        fractional_part = self.schedule_ptp_sub_seconds.value
+        ptp_timestamp = (
+            integer_part << TIMESTAMP_FRACTIONAL_BITS
+        ) | fractional_part
+        return ptp_timestamp
+
+    @property
     def scheduled_time(self) -> IclField[float]:
         """Get scheduled start time as UNIX timestamp"""
         return IclField(
-            description="Scheduled start time",
+            description="Scheduled start time (UNIX ts)",
             type_=float,
-            value=(
-                (self.schedule_ptp_seconds_upper.value << 32)
-                | self.schedule_ptp_seconds_lower.value
-            )
-            + Fxp(
-                self.schedule_ptp_sub_seconds.value,
-                dtype=FRACTION_FXP_TYPE,
-                raw=True,
-            ).get_val(),
+            value=unix_ts_from_ptp(self._scheduled_ptp_timestamp),
         )

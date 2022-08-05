@@ -22,19 +22,22 @@ import numpy as np
 from ska_low_cbf_fpga import ArgsFpgaInterface, FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_map import ArgsFieldInfo
 
+from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
+
 AXI_TRANSACTION_SIZE = 4096
 BEAT_SIZE = 64
+TIMESTAMP_SIZE = TIMESTAMP_BITS // 8
 
 
-def _get_padded_size(packet_size: int) -> int:
+def _get_padded_size(data_size: int) -> int:
     """
     Round up the packet size to the next 'beat's worth of data
-    :param packet_size: bytes
+    :param data_size: bytes
     """
     pad_length = 0
-    if packet_size % BEAT_SIZE:
-        pad_length = BEAT_SIZE - (packet_size % BEAT_SIZE)
-    return packet_size + pad_length
+    if data_size % BEAT_SIZE:
+        pad_length = BEAT_SIZE - (data_size % BEAT_SIZE)
+    return data_size + pad_length
 
 
 class HbmPacketController(FpgaPeripheral):
@@ -120,33 +123,33 @@ class HbmPacketController(FpgaPeripheral):
         self,
         out_file: typing.BinaryIO,
         packet_size: int,
+        timestamped: bool = True,
     ) -> None:
         """
         Dump a PCAP(NG) file from HBM
         :param out_file: File object to write to.
         File type determined by extension, use .pcapng for next-gen.
         :param packet_size: Number of Bytes used for each packet
+        :param timestamped: does the data in HBM contain timestamps?
+        (Rx data will have timestamps, but data loaded for Tx will not)
         """
         if os.path.splitext(out_file.name)[1] == ".pcapng":
             writer = dpkt.pcapng.Writer(out_file)
         else:
-            writer = dpkt.pcap.Writer(out_file)
+            writer = dpkt.pcap.Writer(out_file, nano=True)
 
         padded_packet_size = _get_padded_size(packet_size)
+        data_chunk_size = (
+            padded_packet_size  # we need to process this much at a time
+        )
+        if timestamped:
+            padded_timestamp_size = _get_padded_size(TIMESTAMP_SIZE)
+            data_chunk_size += padded_timestamp_size
 
         last_partial_packet = None
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
-            if buffer == 1:
-                end = self.rx_1st_4gb_rx_addr.value
-            elif buffer == 2:
-                end = self.rx_2nd_4gb_rx_addr.value
-            elif buffer == 3:
-                end = self.rx_3rd_4gb_rx_addr.value
-            elif buffer == 4:
-                end = self.rx_4th_4gb_rx_addr.value
-            else:
-                raise NotImplementedError(f"Haven't coded buffer {buffer} yet")
+            end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
 
             if end == 0:
                 # No data in this buffer, so we have already processed the last packet
@@ -163,18 +166,29 @@ class HbmPacketController(FpgaPeripheral):
                 raw = np.insert(raw, 0, last_partial_packet)
 
             # ensure number of data bytes is an integer multiple of
-            # padded_packet_size, by discarding the remainder from the end
-            if raw.nbytes % padded_packet_size:
-                discard_bytes = raw.nbytes % padded_packet_size
+            # data_chunk_size, by discarding the remainder from the end
+            if raw.nbytes % data_chunk_size:
+                discard_bytes = raw.nbytes % data_chunk_size
                 # save the partial packet for next loop
                 last_partial_packet = raw[-discard_bytes:]
                 raw = raw[:-discard_bytes]
             else:
                 last_partial_packet = None
 
-            raw.shape = (raw.nbytes // padded_packet_size, padded_packet_size)
-            for packet in raw:
-                writer.writepkt(packet[:packet_size].tobytes())
+            raw.shape = (raw.nbytes // data_chunk_size, data_chunk_size)
+            for data in raw:
+                if timestamped:
+                    packet_data = data[:packet_size].tobytes()
+                    ptp_ts = int.from_bytes(
+                        data[
+                            padded_packet_size : padded_packet_size
+                            + TIMESTAMP_SIZE
+                        ].tobytes(),
+                        "big",
+                    )
+                    writer.writepkt(packet_data, unix_ts_from_ptp(ptp_ts))
+                else:
+                    writer.writepkt(data[:packet_size].tobytes())
 
     def load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
@@ -251,13 +265,15 @@ class HbmPacketController(FpgaPeripheral):
         self.start_stop_tx = 0
         self.start_stop_tx = 1
 
-    def start_rx(self, packet_size: int) -> None:
+    def start_rx(self, packet_size: int, n_packets: int = 0) -> None:
         """
         Start receiving packets into FPGA memory
         :param packet_size: only packets of this exact size are captured (bytes)
+        :param n_packets: number of packets to receive
         """
         self.rx_enable_capture = 0
         self.rx_packet_size = packet_size
+        self.rx_packets_to_capture = n_packets
         self.rx_reset_capture = 1
         self.rx_reset_capture = 0
         self.rx_enable_capture = 1

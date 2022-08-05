@@ -178,6 +178,8 @@ with the python package?)
 ### 0.3.0 (unreleased)
 - Add pcap load/dump methods to HbmPacketController and CnicFpga
 - Use new command-line infrastructure from ska-low-cbf-fpga
+- Use 4x FPGA memory buffers (each 4095MiB due to XRT limitations)
+- Read timestamps along with received packets
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo

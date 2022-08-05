@@ -97,11 +97,14 @@ class CnicFpga(FpgaPersonality):
         else:
             self.hbm_pktcontroller.start_tx()
 
-    def receive_pcap(self, out_filename: str, packet_size: int) -> None:
+    def receive_pcap(
+        self, out_filename: str, packet_size: int, n_packets: int = 0
+    ) -> None:
         """
         Receive packets into a PCAP file
         :param out_filename: File path to write to
         :param packet_size: only packets of this exact size are captured (bytes)
+        :param n_packets: number of packets to receive
         """
         # cancel any existing Rx wait thread
         if self._rx_thread:
@@ -111,7 +114,7 @@ class CnicFpga(FpgaPersonality):
             if self._rx_thread.is_alive():
                 raise RuntimeError("Previous Rx thread didn't stop")
 
-        self.hbm_pktcontroller.start_rx(packet_size)
+        self.hbm_pktcontroller.start_rx(packet_size, n_packets)
 
         # start a thread to wait for completion
         self._rx_thread = threading.Thread(
@@ -130,10 +133,9 @@ class CnicFpga(FpgaPersonality):
         :param out_filename: File object to write to
         :param packet_size: Number of Bytes used for each packet
         """
-        # TODO register name not yet defined ("capture_done" is a placeholder)
-        # while not self.hbm_pktcontroller.capture_done.value:
-        #     if self._rx_cancel.wait(timeout=RX_SLEEP_TIME):
-        #         break
+        while not self.hbm_pktcontroller.rx_complete.value:
+            if self._rx_cancel.wait(timeout=RX_SLEEP_TIME):
+                break
 
         with open(out_filename, "wb") as out_file:
             self.hbm_pktcontroller.dump_pcap(out_file, packet_size)
