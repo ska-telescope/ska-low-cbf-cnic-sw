@@ -19,7 +19,6 @@ import warnings
 
 import dpkt.pcapng
 import numpy as np
-from fxpmath import Fxp
 from ska_low_cbf_fpga import ArgsFpgaInterface, FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_map import ArgsFieldInfo
 
@@ -135,7 +134,7 @@ class HbmPacketController(FpgaPeripheral):
         if os.path.splitext(out_file.name)[1] == ".pcapng":
             writer = dpkt.pcapng.Writer(out_file)
         else:
-            writer = dpkt.pcap.Writer(out_file)
+            writer = dpkt.pcap.Writer(out_file, nano=True)
 
         padded_packet_size = _get_padded_size(packet_size)
         data_chunk_size = (
