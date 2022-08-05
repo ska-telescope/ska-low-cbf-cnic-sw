@@ -123,13 +123,15 @@ class HbmPacketController(FpgaPeripheral):
         self,
         out_file: typing.BinaryIO,
         packet_size: int,
-        timestamped: bool = False,
+        timestamped: bool = True,
     ) -> None:
         """
         Dump a PCAP(NG) file from HBM
         :param out_file: File object to write to.
         File type determined by extension, use .pcapng for next-gen.
         :param packet_size: Number of Bytes used for each packet
+        :param timestamped: does the data in HBM contain timestamps?
+        (Rx data will have timestamps, but data loaded for Tx will not)
         """
         if os.path.splitext(out_file.name)[1] == ".pcapng":
             writer = dpkt.pcapng.Writer(out_file)
