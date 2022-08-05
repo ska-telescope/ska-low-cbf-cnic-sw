@@ -84,7 +84,6 @@ class HbmPacketController(FpgaPeripheral):
         Simple virtual address mapper for writing to multiple HBM buffers.
         :param data: numpy array to write
         :param address: byte-based address
-        :return:
         """
         # Note bisect works here because our first buffer to use is memory 1
         # (would need to add an offset if this was not the case)
@@ -133,20 +132,45 @@ class HbmPacketController(FpgaPeripheral):
         else:
             writer = dpkt.pcap.Writer(out_file)
 
-        # TODO - there will be an "end of data" value to give a stopping point...
         padded_packet_size = _get_padded_size(packet_size)
 
+        last_partial_packet = None
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
+            if buffer == 1:
+                end = self.rx_1st_4gb_rx_addr.value
+            elif buffer == 2:
+                end = self.rx_2nd_4gb_rx_addr.value
+            elif buffer == 3:
+                end = self.rx_3rd_4gb_rx_addr.value
+            elif buffer == 4:
+                end = self.rx_4th_4gb_rx_addr.value
+            else:
+                raise NotImplementedError(f"Haven't coded buffer {buffer} yet")
+
+            if end == 0:
+                # No data in this buffer, so we have already processed the last packet
+                break
+
             raw = (
                 self._interfaces[self._default_interface]
-                .read_memory(buffer)
+                .read_memory(buffer, end)
                 .view(dtype=np.uint8)
             )
+
+            if last_partial_packet is not None:
+                # insert tail of last buffer into head of this one
+                raw = np.insert(raw, 0, last_partial_packet)
+
             # ensure number of data bytes is an integer multiple of
             # padded_packet_size, by discarding the remainder from the end
             if raw.nbytes % padded_packet_size:
-                raw = raw[: -(raw.nbytes % padded_packet_size)]
+                discard_bytes = raw.nbytes % padded_packet_size
+                # save the partial packet for next loop
+                last_partial_packet = raw[-discard_bytes:]
+                raw = raw[:-discard_bytes]
+            else:
+                last_partial_packet = None
 
             raw.shape = (raw.nbytes // padded_packet_size, padded_packet_size)
             for packet in raw:
@@ -232,9 +256,8 @@ class HbmPacketController(FpgaPeripheral):
         Start receiving packets into FPGA memory
         :param packet_size: only packets of this exact size are captured (bytes)
         """
-        # TODO - register names not yet defined?
-        # self.enable_capture = 0
-        # self.rx_packet_size = packet_size
-        # self.rx_reset = 1
-        # self.rx_rest = 0
-        # self.enable_capture = 1
+        self.rx_enable_capture = 0
+        self.rx_packet_size = packet_size
+        self.rx_reset_capture = 1
+        self.rx_reset_capture = 0
+        self.rx_enable_capture = 1
