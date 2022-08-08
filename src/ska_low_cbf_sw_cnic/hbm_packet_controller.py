@@ -54,8 +54,6 @@ class HbmPacketController(FpgaPeripheral):
         default_interface: str = "__default__",
     ) -> None:
         super().__init__(interfaces, map_field_info, default_interface)
-        self._packets_to_transmit = 0
-        """Number of packets to transmit"""
 
         # we don't have nice interface to find the actual size of the buffers...
         self._fpga_interface = self._interfaces[self._default_interface]
@@ -73,13 +71,23 @@ class HbmPacketController(FpgaPeripheral):
         (Note: n+1 elements, last element is end of last buffer)"""
 
     @property
-    def packet_count(self) -> IclField[int]:
-        """Get 64-bit total packet count"""
+    def tx_packet_count(self) -> IclField[int]:
+        """Get 64-bit total Tx packet count"""
         return IclField(
-            description="Total Packet Count",
+            description="Transmitted Packet Count",
             type_=int,
-            value=(self.current_pkt_count_high.value << 32)
-            + self.current_pkt_count_low.value,
+            value=(self.tx_packet_count_hi.value << 32)
+            | self.tx_packet_count_lo.value,
+        )
+
+    @property
+    def rx_packet_count(self) -> IclField[int]:
+        """Get 64-bit total Rx packet count"""
+        return IclField(
+            description="Received Packet Count",
+            type_=int,
+            value=(self.rx_packet_count_hi.value << 32)
+            | self.rx_packet_count_lo.value,
         )
 
     def _virtual_write(self, data: np.ndarray, address: int) -> None:
@@ -223,10 +231,11 @@ class HbmPacketController(FpgaPeripheral):
             n_packets += 1
             virtual_address += packet_padded_size
 
-        self._packets_to_transmit = n_packets  # TODO move to FPGA?
-        self.packet_size = packet_size
-        self.expected_beats_per_packet = packet_padded_size // BEAT_SIZE
-        self.expected_total_number_of_4k_axi = math.ceil(
+        # self._packets_to_transmit = n_packets  # TODO move to FPGA?
+        self.tx_total_number_tx_packets = n_packets
+        self.tx_packet_size = packet_size
+        self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
+        self.tx_axi_transactions = math.ceil(
             (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
         )
 
@@ -242,28 +251,23 @@ class HbmPacketController(FpgaPeripheral):
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
-        self.time_between_bursts_ns = burst_gap
-        self.expected_packets_per_burst = burst_size
-        self.expected_number_beats_per_burst = (
-            self.expected_beats_per_packet * burst_size
-        )
-        # TODO - can we store number of packets in the FPGA?
-        #  - this code won't work if "load_pcap" and "configure_tx" are called by
-        #    different command-line utilities, for example
-        self.expected_total_number_of_bursts = math.ceil(
-            self._packets_to_transmit / burst_size
+        self.tx_burst_gap = burst_gap
+        self.tx_packets_per_burst = burst_size
+        self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
+        self.tx_bursts = math.ceil(
+            self.tx_total_number_tx_packets / burst_size
         )
 
         if n_loops > 1:
-            self.loop_tx = True
-            self.expected_number_of_loops = n_loops
+            self.tx_loop_enable = True
+            self.tx_loops = n_loops
 
     def start_tx(self) -> None:
         """
         Start transmitting packets
         """
-        self.start_stop_tx = 0
-        self.start_stop_tx = 1
+        self.tx_enable = 0
+        self.tx_enable = 1
 
     def start_rx(self, packet_size: int, n_packets: int = 0) -> None:
         """
