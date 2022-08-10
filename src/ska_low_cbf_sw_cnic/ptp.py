@@ -143,7 +143,7 @@ class Ptp(FpgaPeripheral):
         )
 
     @property
-    def mac_address(self):
+    def mac_address(self) -> IclField[str]:
         """Get MAC address"""
         return IclField(
             value="DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
