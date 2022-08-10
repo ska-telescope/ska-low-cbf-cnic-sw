@@ -87,8 +87,8 @@ class CnicFpga(FpgaPersonality):
         :param burst_gap: time between bursts of packets (nanoseconds)
         :param start_time: optional time to begin transmission at
         (default None means begin immediately)
-        :return:
         """
+        self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
             self.hbm_pktcontroller.load_pcap(in_file)
         self.hbm_pktcontroller.configure_tx(n_loops, burst_size, burst_gap)
