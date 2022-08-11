@@ -79,7 +79,7 @@ class CnicCmdline(FpgaCmdline):
                     len(command) == 4
                 ), "use 'rx <filename> <packet size> <n packets>'"
                 print(f"Writing to {command[1]}")
-                print(f"{command[3]} packets, each of size {command[2]}B")
+                print(f"{command[3]} packets, each of size {command[2]} B")
                 fpga.receive_pcap(command[1], int(command[2]), int(command[3]))
 
             else:
