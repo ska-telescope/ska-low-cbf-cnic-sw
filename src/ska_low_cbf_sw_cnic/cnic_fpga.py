@@ -64,11 +64,7 @@ class CnicFpga(FpgaPersonality):
         # (high bytes are set by the PTP core)
         self.timeslave.startup(alveo_mac_low, ptp_domain)
         self._logger.info(
-            "  PTP MAC address:"
-            + "DC:3C:F6:"  # top 3 bytes are hard coded in PTP core
-            + ":".join(
-                f"{alveo_mac_low:06x}"[_ : _ + 2] for _ in range(0, 6, 2)
-            ).upper(),
+            f"  PTP MAC address: {self.timeslave.mac_address.value}"
         )
 
     def transmit_pcap(
@@ -87,8 +83,9 @@ class CnicFpga(FpgaPersonality):
         :param burst_gap: time between bursts of packets (nanoseconds)
         :param start_time: optional time to begin transmission at
         (default None means begin immediately)
-        :return:
         """
+        # TODO - we want to specify Gbps rather than ns gap
+        self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
             self.hbm_pktcontroller.load_pcap(in_file)
         self.hbm_pktcontroller.configure_tx(n_loops, burst_size, burst_gap)
@@ -133,7 +130,13 @@ class CnicFpga(FpgaPersonality):
         :param out_filename: File object to write to
         :param packet_size: Number of Bytes used for each packet
         """
-        while not self.hbm_pktcontroller.rx_complete.value:
+        while not (
+            self.hbm_pktcontroller.rx_complete.value
+            or (
+                self.hbm_pktcontroller.rx_packet_count
+                >= self.hbm_pktcontroller.rx_packets_to_capture
+            )
+        ):
             if self._rx_cancel.wait(timeout=RX_SLEEP_TIME):
                 break
 
