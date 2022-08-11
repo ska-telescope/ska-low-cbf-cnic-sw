@@ -84,6 +84,7 @@ class CnicFpga(FpgaPersonality):
         :param start_time: optional time to begin transmission at
         (default None means begin immediately)
         """
+        # TODO - we want to specify Gbps rather than ns gap
         self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
             self.hbm_pktcontroller.load_pcap(in_file)
@@ -129,7 +130,13 @@ class CnicFpga(FpgaPersonality):
         :param out_filename: File object to write to
         :param packet_size: Number of Bytes used for each packet
         """
-        while not self.hbm_pktcontroller.rx_complete.value:
+        while not (
+            self.hbm_pktcontroller.rx_complete.value
+            or (
+                self.hbm_pktcontroller.rx_packet_count
+                >= self.hbm_pktcontroller.rx_packets_to_capture
+            )
+        ):
             if self._rx_cancel.wait(timeout=RX_SLEEP_TIME):
                 break
 
