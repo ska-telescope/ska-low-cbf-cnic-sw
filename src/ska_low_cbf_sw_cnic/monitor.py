@@ -171,5 +171,3 @@ def display_status_forever(fpga: FpgaPersonality):
         while True:
             time.sleep(1)
             update_layout(layout, fpga)
-            if fpga.hbm_pktcontroller.tx_complete.value:
-                break
