@@ -20,6 +20,7 @@ import warnings
 import dpkt.pcapng
 import numpy as np
 from ska_low_cbf_fpga import ArgsFpgaInterface, FpgaPeripheral, IclField
+from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
 from ska_low_cbf_fpga.args_map import ArgsFieldInfo
 
 from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
@@ -155,6 +156,8 @@ class HbmPacketController(FpgaPeripheral):
             data_chunk_size += padded_timestamp_size
 
         last_partial_packet = None
+        first_packet = True
+        n_packets = 0
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
             end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
@@ -187,16 +190,35 @@ class HbmPacketController(FpgaPeripheral):
             for data in raw:
                 if timestamped:
                     packet_data = data[:packet_size].tobytes()
-                    ptp_ts = int.from_bytes(
-                        data[
-                            padded_packet_size : padded_packet_size
-                            + TIMESTAMP_SIZE
-                        ].tobytes(),
-                        "big",
+                    timestamp = unix_ts_from_ptp(
+                        int.from_bytes(
+                            data[
+                                padded_packet_size : padded_packet_size
+                                + TIMESTAMP_SIZE
+                            ].tobytes(),
+                            "big",
+                        )
                     )
-                    writer.writepkt(packet_data, unix_ts_from_ptp(ptp_ts))
+                    writer.writepkt(packet_data, timestamp)
+                    if first_packet:
+                        first_ts = timestamp
+                        first_packet = False
                 else:
                     writer.writepkt(data[:packet_size].tobytes())
+                n_packets += 1
+            total_bytes = n_packets * packet_size
+            print(
+                (
+                    f"Wrote {n_packets} packets, "
+                    f"{str_from_int_bytes(total_bytes)} "
+                    f"to {out_file.name}"
+                )
+            )
+            if timestamped:
+                duration = timestamp - first_ts
+                data_rate_gbps = (8 * total_bytes / duration) / 1e9
+                print(f"Capture duration {duration:.9f} s")
+                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
 
     def load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
@@ -231,7 +253,6 @@ class HbmPacketController(FpgaPeripheral):
             n_packets += 1
             virtual_address += packet_padded_size
 
-        # self._packets_to_transmit = n_packets  # TODO move to FPGA?
         self.tx_total_number_tx_packets = n_packets
         self.tx_packet_size = packet_size
         self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
