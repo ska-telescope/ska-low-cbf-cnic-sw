@@ -217,17 +217,6 @@ pycodestyle = ">=2.7.0,<2.8.0"
 pyflakes = ">=2.3.0,<2.4.0"
 
 [[package]]
-name = "fxpmath"
-version = "0.4.8"
-description = "A python library for fractional fixed-point (base 2) arithmetic and binary manipulation with Numpy compatibility."
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-numpy = "*"
-
-[[package]]
 name = "glob2"
 version = "0.7"
 description = "Version of the glob module that can capture patterns and supports recursive wildcards"
@@ -957,7 +946,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "43a94d31fe78275c3bd8925051a379ef4618d30652442b992bb314708c8b0d0f"
+content-hash = "c1c5a32eae670a10d731af5ea3fee7e61cc2b08b7df8e82895f091cd2d056e90"
 
 [metadata.files]
 ansicon = [
@@ -1093,9 +1082,6 @@ filelock = [
 flake8 = [
     {file = "flake8-3.9.2-py2.py3-none-any.whl", hash = "sha256:bf8fd333346d844f616e8d47905ef3a3384edae6b4e9beb0c5101e25e3110907"},
     {file = "flake8-3.9.2.tar.gz", hash = "sha256:07528381786f2a6237b061f6e96610a4167b226cb926e2aa2b6b1d78057c576b"},
-]
-fxpmath = [
-    {file = "fxpmath-0.4.8.tar.gz", hash = "sha256:3ac492517ff3855a8bf0d7945e1412983054d34e2419d34199812e9a06c47734"},
 ]
 glob2 = [
     {file = "glob2-0.7.tar.gz", hash = "sha256:85c3dbd07c8aa26d63d7aacee34fa86e9a91a3873bc30bf62ec46e531f92ab8c"},

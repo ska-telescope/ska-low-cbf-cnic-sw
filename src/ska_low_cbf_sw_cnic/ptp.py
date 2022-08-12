@@ -10,7 +10,6 @@ PTP Peripheral ICL
 from datetime import datetime
 from enum import IntEnum
 
-from fxpmath import Fxp
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 
 
