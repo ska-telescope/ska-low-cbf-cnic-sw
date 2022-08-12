@@ -54,9 +54,9 @@ def _gap_from_rate(packet_size: int, rate: float, burst_size: int = 1) -> int:
     # Effective packet size on wire
     line_bytes = packet_size + IFG_SIZE + FCS_SIZE
     # Desired packets/s
-    packet_rate = (rate * 1e9) // (line_bytes * 8)
+    packet_rate = (rate * 1e9) / (line_bytes * 8)
     # Convert to nanoseconds and apply burst size factor
-    return math.ceil(1e9 * burst_size // packet_rate)
+    return math.ceil(1e9 * burst_size / packet_rate)
 
 
 class HbmPacketController(FpgaPeripheral):
@@ -303,7 +303,7 @@ class HbmPacketController(FpgaPeripheral):
             )
             print(
                 (
-                    f"{rate} Gbps with {self.tx_packet_size} B packets "
+                    f"{rate} Gbps with {self.tx_packet_size.value} B packets "
                     f"in bursts of {burst_size} "
                     f"gives a burst period of {self.tx_burst_gap.value} ns"
                 )
