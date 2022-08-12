@@ -25,20 +25,16 @@ class PtpCommand(IntEnum):
 
 
 TIMESTAMP_BITS = 80
-TIMESTAMP_FRACTIONAL_BITS = 32
-# 48 bits integer, 32 bits fractional
-TS_FXP_TYPE = f"U{TIMESTAMP_BITS - TIMESTAMP_FRACTIONAL_BITS}.{TIMESTAMP_FRACTIONAL_BITS}"
-# FXP data type used for subseconds: no integer component, 32b fractional
-FRACTION_FXP_TYPE = f"U0.{TIMESTAMP_FRACTIONAL_BITS}"
+TIMESTAMP_NS_BITS = 32
+# 48 bits integer, 32 bits of nanoseconds
 
 
 def unix_ts_from_ptp(ptp_timestamp: int) -> float:
     """Get UNIX timestamp from 80 bit PTP value"""
-    return Fxp(
-        ptp_timestamp,
-        dtype=TS_FXP_TYPE,
-        raw=True,
-    ).get_val()
+    ns_mask = (1 << TIMESTAMP_NS_BITS) - 1
+    sub_seconds = (ptp_timestamp & ns_mask) / 1e9
+    seconds = ptp_timestamp >> TIMESTAMP_NS_BITS
+    return seconds + sub_seconds
 
 
 class Ptp(FpgaPeripheral):
@@ -190,25 +186,8 @@ class Ptp(FpgaPeripheral):
         seconds = int(seconds)
         self.schedule_ptp_seconds_upper = seconds >> 32
         self.schedule_ptp_seconds_lower = seconds & 0xFFFF_FFFF
-        # convert fractional component to binary
-        # MSB = 0.5
-        # LSB = (0.5^32) = ~2^-10   i.e. very small
-        self.schedule_ptp_sub_seconds = int(
-            Fxp(fractional_seconds, dtype=FRACTION_FXP_TYPE).hex(), 16
-        )
+        self.schedule_ptp_sub_seconds = int(fractional_seconds * 1e9)
         self.schedule_control = 3  # bits 0 (reset) & 1 (start)
-
-    @property
-    def _scheduled_ptp_timestamp(self) -> int:
-        """Get scheduled start time as PTP (80 bit) timestamp"""
-        integer_part = (
-            self.schedule_ptp_seconds_upper.value << 32
-        ) | self.schedule_ptp_seconds_lower.value
-        fractional_part = self.schedule_ptp_sub_seconds.value
-        ptp_timestamp = (
-            integer_part << TIMESTAMP_FRACTIONAL_BITS
-        ) | fractional_part
-        return ptp_timestamp
 
     @property
     def scheduled_time(self) -> IclField[float]:
@@ -216,5 +195,14 @@ class Ptp(FpgaPeripheral):
         return IclField(
             description="Scheduled start time (UNIX ts)",
             type_=float,
-            value=unix_ts_from_ptp(self._scheduled_ptp_timestamp),
+            value=unix_ts_from_ptp(self._scheduled_ptp_ts),
         )
+
+    @property
+    def _scheduled_ptp_ts(self) -> int:
+        ptp_ts = (
+            (self.schedule_ptp_seconds_upper.value << 64)
+            | (self.schedule_ptp_seconds_lower.value << 32)
+            | self.schedule_ptp_sub_seconds.value
+        )
+        return ptp_ts
