@@ -180,6 +180,8 @@ with the python package?)
 - Use new command-line infrastructure from ska-low-cbf-fpga
 - Use 4x FPGA memory buffers (each 4095MiB due to XRT limitations)
 - Read timestamps along with received packets
+- Add transmission rate parameter (Gbps)
+- Fix PTP interpretation (IEEE format, not fixed-point binary)
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo
