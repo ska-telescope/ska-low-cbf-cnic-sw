@@ -72,7 +72,8 @@ class CnicFpga(FpgaPersonality):
         in_filename: str,
         n_loops: int = 1,
         burst_size: int = 1,
-        rate: float = 100,
+        burst_gap: typing.Union[int, None] = None,
+        rate: float = 100.0,
         start_time: typing.Union[datetime, None] = None,
     ) -> None:
         """
@@ -80,14 +81,17 @@ class CnicFpga(FpgaPersonality):
         :param in_filename: input PCAP(NG) file path
         :param n_loops: number of loops
         :param burst_size: packets per burst
-        :param rate: transmission rate, Gbps
+        :param burst_gap: packet burst period (ns), overrides rate
+        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         :param start_time: optional time to begin transmission at
         (default None means begin immediately)
         """
         self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
             self.hbm_pktcontroller.load_pcap(in_file)
-        self.hbm_pktcontroller.configure_tx(n_loops, burst_size, rate)
+        self.hbm_pktcontroller.configure_tx(
+            n_loops, burst_size, burst_gap, rate
+        )
         if start_time:
             self.timeslave.set_start_time(start_time)
         else:

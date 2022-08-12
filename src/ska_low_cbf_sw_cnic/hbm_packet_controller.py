@@ -56,7 +56,7 @@ def _gap_from_rate(packet_size: int, rate: float, burst_size: int = 1) -> int:
     # Desired packets/s
     packet_rate = (rate * 1e9) // (line_bytes * 8)
     # Convert to nanoseconds and apply burst size factor
-    return int(1e9 * burst_size // packet_rate)
+    return math.ceil(1e9 * burst_size // packet_rate)
 
 
 class HbmPacketController(FpgaPeripheral):
@@ -282,27 +282,32 @@ class HbmPacketController(FpgaPeripheral):
         self,
         n_loops: int = 1,
         burst_size: int = 1,
-        rate: float = 100,
+        burst_gap: typing.Union[int, None] = None,
+        rate: float = 100.0,
     ) -> None:
         """
         Configure packet transmission parameters
         :param n_loops: number of loops
         :param burst_size: packets per burst
-        :param rate: transmission rate (Gigabits per sec)
+        :param burst_gap: packet burst period (ns), overrides rate
+        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         """
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
-        self.tx_burst_gap = _gap_from_rate(
-            self.tx_packet_size, rate, burst_size
-        )
-        print(
-            (
-                f"{rate} Gbps with {self.tx_packet_size} B packets "
-                f"in bursts of {burst_size} "
-                f"gives a burst period of {self.tx_burst_gap.value} ns"
+        if burst_gap:
+            self.tx_burst_gap = burst_gap
+        else:
+            self.tx_burst_gap = _gap_from_rate(
+                self.tx_packet_size, rate, burst_size
             )
-        )
+            print(
+                (
+                    f"{rate} Gbps with {self.tx_packet_size} B packets "
+                    f"in bursts of {burst_size} "
+                    f"gives a burst period of {self.tx_burst_gap.value} ns"
+                )
+            )
         self.tx_packets_per_burst = burst_size
         self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
         self.tx_bursts = math.ceil(
