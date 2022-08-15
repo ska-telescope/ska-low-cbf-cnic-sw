@@ -30,6 +30,7 @@ IFG_SIZE = 20  # Ethernet Inter-Frame Gap
 FCS_SIZE = 4  # Ethernet Frame Check Sequence
 AXI_TRANSACTION_SIZE = 4096
 BEAT_SIZE = 64
+MEM_ALIGN_SIZE = 64  # data in HBM aligned to multiples of this
 TIMESTAMP_SIZE = TIMESTAMP_BITS // 8
 
 
@@ -39,8 +40,8 @@ def _get_padded_size(data_size: int) -> int:
     :param data_size: bytes
     """
     pad_length = 0
-    if data_size % BEAT_SIZE:
-        pad_length = BEAT_SIZE - (data_size % BEAT_SIZE)
+    if data_size % MEM_ALIGN_SIZE:
+        pad_length = MEM_ALIGN_SIZE - (data_size % MEM_ALIGN_SIZE)
     return data_size + pad_length
 
 
@@ -179,15 +180,36 @@ class HbmPacketController(FpgaPeripheral):
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
             end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
+            print(
+                f"Reading {end} B from HBM buffer {buffer} ",
+                end="",
+                flush=True,
+            )
             if end == 0:
                 # No data in this buffer, so we have already processed the last packet
                 break
 
-            raw = (
-                self._interfaces[self._default_interface]
-                .read_memory(buffer, end)
-                .view(dtype=np.uint8)
-            )
+            # WORKAROUND for weird bug when reading 2GB+ on some machines
+            # hopefully we can remove this later
+            raw = np.empty(end, dtype=np.uint8)
+            page_size = 1 << 30  # read 1GB
+            for this_read_start in range(0, end, page_size):
+                this_read_end = min(this_read_start + page_size, end)
+                n_bytes = this_read_end - this_read_start
+                raw[this_read_start:this_read_end] = (
+                    self._interfaces[self._default_interface]
+                    .read_memory(buffer, n_bytes, this_read_start)
+                    .view(dtype=np.uint8)
+                )
+                print(".", end="", flush=True)
+            # END WORKAROUND
+            # below is the code that would work if not for the bug!
+            # raw = (
+            #     self._interfaces[self._default_interface]
+            #     .read_memory(buffer, end)
+            #     .view(dtype=np.uint8)
+            # )
+            print(f"\nWriting buffer {buffer} packets to file")
 
             if last_partial_packet is not None:
                 # insert tail of last buffer into head of this one
@@ -225,6 +247,7 @@ class HbmPacketController(FpgaPeripheral):
                 n_packets += 1
 
         # end for each buffer loop
+        print("Finished writing\n")
         total_bytes = n_packets * packet_size
         if timestamped:
             duration = timestamp - first_ts
@@ -277,7 +300,9 @@ class HbmPacketController(FpgaPeripheral):
                 print(".", end="", flush=True)
                 print_next_dot += dot_print_increment
 
-        print(f"\nLoaded {n_packets} packets, {virtual_address} Bytes")
+        print(
+            f"\nLoaded {n_packets - 1} packets, {virtual_address - packet_padded_size} Bytes"
+        )
         self.tx_total_number_tx_packets = n_packets
         self.tx_packet_size = packet_size
         self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
