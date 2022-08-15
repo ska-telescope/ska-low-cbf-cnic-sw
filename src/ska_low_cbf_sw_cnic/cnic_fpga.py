@@ -88,13 +88,18 @@ class CnicFpga(FpgaPersonality):
         """
         self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
+            print("Loading file")
             self.hbm_pktcontroller.load_pcap(in_file)
+            print("Loading complete")
+        print("Configuring Tx params")
         self.hbm_pktcontroller.configure_tx(
             n_loops, burst_size, burst_gap, rate
         )
         if start_time:
+            print("Setting scheduled start time")
             self.timeslave.set_start_time(start_time)
         else:
+            print("Starting transmission")
             self.hbm_pktcontroller.start_tx()
 
     def receive_pcap(
@@ -114,9 +119,11 @@ class CnicFpga(FpgaPersonality):
             if self._rx_thread.is_alive():
                 raise RuntimeError("Previous Rx thread didn't stop")
 
+        print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
 
         # start a thread to wait for completion
+        print("Starting thread to wait for completion")
         self._rx_thread = threading.Thread(
             target=self._dump_pcap_when_complete,
             args=(out_filename, packet_size),
@@ -142,6 +149,8 @@ class CnicFpga(FpgaPersonality):
         ):
             if self._rx_cancel.wait(timeout=RX_SLEEP_TIME):
                 break
+            print(".", end="", flush=True)
 
+        print("\nWriting to file")
         with open(out_filename, "wb") as out_file:
             self.hbm_pktcontroller.dump_pcap(out_file, packet_size)

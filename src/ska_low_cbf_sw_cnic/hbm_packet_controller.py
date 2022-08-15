@@ -179,7 +179,6 @@ class HbmPacketController(FpgaPeripheral):
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
             end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
-
             if end == 0:
                 # No data in this buffer, so we have already processed the last packet
                 break
@@ -224,19 +223,21 @@ class HbmPacketController(FpgaPeripheral):
                 else:
                     writer.writepkt(data[:packet_size].tobytes())
                 n_packets += 1
-            total_bytes = n_packets * packet_size
-            print(
-                (
-                    f"Wrote {n_packets} packets, "
-                    f"{str_from_int_bytes(total_bytes)} "
-                    f"to {out_file.name}"
-                )
+
+        # end for each buffer loop
+        total_bytes = n_packets * packet_size
+        if timestamped:
+            duration = timestamp - first_ts
+            data_rate_gbps = (8 * total_bytes / duration) / 1e9
+            print(f"Capture duration {duration:.9f} s")
+            print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+        print(
+            (
+                f"Wrote {n_packets} packets, "
+                f"{str_from_int_bytes(total_bytes)} "
+                f"to {out_file.name}"
             )
-            if timestamped:
-                duration = timestamp - first_ts
-                data_rate_gbps = (8 * total_bytes / duration) / 1e9
-                print(f"Capture duration {duration:.9f} s")
-                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+        )
 
     def load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
@@ -252,6 +253,8 @@ class HbmPacketController(FpgaPeripheral):
         first_packet = True
         virtual_address = 0  # byte address to write to
         packet_padded_size = 0
+        dot_print_increment = 128 << 20  # print progress every 128MiB
+        print_next_dot = 0
         n_packets = 0
         packet_size = 0
         for timestamp, packet in reader(in_file):
@@ -270,7 +273,11 @@ class HbmPacketController(FpgaPeripheral):
             self._virtual_write(padded_packet, virtual_address)
             n_packets += 1
             virtual_address += packet_padded_size
+            if virtual_address >= print_next_dot:
+                print(".", end="", flush=True)
+                print_next_dot += dot_print_increment
 
+        print(f"\nLoaded {n_packets} packets, {virtual_address} Bytes")
         self.tx_total_number_tx_packets = n_packets
         self.tx_packet_size = packet_size
         self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
