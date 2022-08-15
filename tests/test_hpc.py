@@ -4,7 +4,7 @@ from datetime import datetime
 import pytest
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import (
-    BEAT_SIZE,
+    MEM_ALIGN_SIZE,
     _gap_from_rate,
     _get_padded_size,
 )
@@ -14,10 +14,10 @@ class TestFunctions:
     @pytest.mark.parametrize(
         "raw, padded",
         [
-            (1, BEAT_SIZE),
-            (BEAT_SIZE, BEAT_SIZE),
-            (3 * BEAT_SIZE + 1, 4 * BEAT_SIZE),
-            (500 * BEAT_SIZE - 1, 500 * BEAT_SIZE),
+            (1, MEM_ALIGN_SIZE),
+            (MEM_ALIGN_SIZE, MEM_ALIGN_SIZE),
+            (3 * MEM_ALIGN_SIZE + 1, 4 * MEM_ALIGN_SIZE),
+            (500 * MEM_ALIGN_SIZE - 1, 500 * MEM_ALIGN_SIZE),
         ],
     )
     def test_padded_size(self, raw, padded):
