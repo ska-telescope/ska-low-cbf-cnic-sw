@@ -301,7 +301,7 @@ class HbmPacketController(FpgaPeripheral):
                 print_next_dot += dot_print_increment
 
         print(
-            f"\nLoaded {n_packets - 1} packets, {virtual_address - packet_padded_size} Bytes"
+            f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
         )
         self.tx_total_number_tx_packets = n_packets
         self.tx_packet_size = packet_size
