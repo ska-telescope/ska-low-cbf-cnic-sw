@@ -27,7 +27,10 @@ class TestFunctions:
     )
     def test_padded_size(self, raw, padded):
         """
-        Data should be padded to the smallest multiple of BEAT_SIZE that it fits into
+        Data should be padded to the smallest multiple of MEM_ALIGN_SIZE that it fits
+        into
+        :param raw: size of actual data
+        :param padded: expected size after padding
         """
         assert _get_padded_size(raw) == padded
 
