@@ -1,5 +1,10 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2022 CSIRO Space and Astronomy.
+#
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info
 """HBM Packet Controller Tests"""
-from datetime import datetime
 
 import pytest
 
