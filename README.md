@@ -182,6 +182,8 @@ with the python package?)
 - Read timestamps along with received packets
 - Add transmission rate parameter (Gbps)
 - Fix PTP interpretation (IEEE format, not fixed-point binary)
+- Add workaround for some machines crashing with pyxrt buffers >= 2GiB
+- Add status update print statements
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo
