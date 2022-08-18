@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2022 CSIRO Space and Astronomy.
+#
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info
+"""PTP (Precision Time Protocol) Peripheral Tests"""
 from datetime import datetime
 
 import pytest
@@ -15,6 +22,7 @@ def ptp():
 
 class TestPtp:
     def test_mac(self, ptp):
+        """Check MAC address byte ordering"""
         TEST_ADDRESS = 0xFE_DC_BA
         ptp.user_mac_address = TEST_ADDRESS
         assert (ptp.profile_mac_hi.value & 0xFF000000) >> 24 == 0xFE
@@ -23,14 +31,14 @@ class TestPtp:
         assert ptp.user_mac_address.value == TEST_ADDRESS
 
 
-# PTP ts has 32 bits of fraction.
-# 0x8000_0000 is the MSB of the fractional component (0.5)
+# PTP ts has 32 bits of nanoseconds, top 48 bits are seconds.
 @pytest.mark.parametrize(
     "ptp_ts, unix_ts",
     [
-        (0x8000_0000, 0.5),
-        (0x1_9000_0000, 1.5625),
+        (100_000_000, 0.1),
+        (900_000_000, 0.9),
         (0x1234_0000_0000, 0x1234),
+        (0x1234_0000_0000 + 250_000_000, 0x1234 + 0.25),
     ],
 )
 class TestTimestampConversion:
@@ -42,5 +50,5 @@ class TestTimestampConversion:
         """Test setting PTP start time & read-back thereof"""
         start_dt = datetime.fromtimestamp(unix_ts)
         ptp.set_start_time(start_dt)
-        assert ptp._scheduled_ptp_timestamp == ptp_ts
+        assert ptp._scheduled_ptp_ts == ptp_ts
         assert ptp.scheduled_time.value == unix_ts

@@ -100,6 +100,51 @@ CNIC:
 
 Inside the debug console, use `fpgas` or `fpga` to access the FPGA(s).
 
+## Transmit a PCAP(NG) File
+
+An experimental (read: subject to change!) command-line interface is available.
+Use `cnic <kernel and memory flags> tx <filename>`.
+
+e.g.
+
+```console
+cnic -d 3 -m "4095Ms:4095Ms:4095Ms:4095Ms" -f cnic.xclbin tx my_pcap_file.pcap
+```
+
+The program will return immediately, without waiting for the FPGA to send the
+packets.
+
+## Receive a PCAP(NG) File
+
+An experimental (read: subject to change!) command-line interface is available.
+Use `cnic <kernel and memory flags> rx <filename> <packet size> <n packets>`.
+
+e.g.
+
+```console
+cnic -d 3 -m "4095Ms:4095Ms:4095Ms:4095Ms" -f cnic.xclbin rx new_pcap_file.pcap 2048 100
+```
+
+The program will block until the expected number of packets is received or the
+HBM memory is full.
+
+The number of packets setting is a software trigger, when the trigger is hit
+all packets in HBM will be dumped. Your PCAP file may contain more packets than
+the trigger value.
+
+## Monitor Status
+
+An experimental (read: subject to change!) command-line interface is available.
+Use `cnic <kernel and memory flags> monitor`.
+
+e.g.
+
+```console
+cnic -d 3 -m "4095Ms:4095Ms:4095Ms:4095Ms" -f cnic.xclbin monitor
+```
+
+The monitor interface is a full-screen terminal application. Use Ctrl-C to exit.
+
 ## change\_port
 Change the port number in a pcap file.
 
@@ -132,40 +177,19 @@ Monitor the transmit & recieve rates on an ethernet interface.
 eth_interface_rate [-h] interface
 ```
 
-## pcap\_to\_hbm
-
-Transmit a pcap file via the Alveo's 100G Ethernet port.
-
-```console
-usage: pcap_to_hbm [-h] [-f KERNEL] [-d CARD] [-m MEMORY] [--burst-size BURST_SIZE] [--burst-gap BURST_GAP]
-                   [--total-time TOTAL_TIME] [--numpackets NUMPACKETS] [--loop] [--debugpkts DEBUGPKTS]
-                   [--ptp-domain PTP_DOMAIN] [--start-time START_TIME] [-v]
-                   [pcap]
-```
-e.g.
-```console
-  pcap_to_hbm --card 0 -f cnic.xclbin test/codif_sample.pcapng --start-time "2022-03-30 13:14:15.75"
-```
 # Road Map
 
 Some ideas for future work... consider all details suggestions subject to change,
 they're not set in stone!
 
-* Split the load/monitoring parts of pcap\_to\_hbm into different programs.
-The user may want to start sending packets forever without blocking their terminal.
-  * `cnic_send` to perform the "load to HBM" and "begin transmit" functions
-  * `cnic_monitor` to launch the monitoring UI
-* HBM Packet Controller setup functions could be moved to HbmPacketController,
-rather than driving all registers individually/directly in the main program.
 * Controlling multiple FPGA cards with one instance of the program would be
-viable after doing some more refactoring. Could either use a loop over a list
-of `CnicFpga` objects or invent some FPGA group object to handle it.
+viable. Could either use a loop over a list of `CnicFpga` objects or invent some
+FPGA group object to handle it.
 * pcap/pcapng detection is a bit crude, there may be a way to detect based on content
 rather than file extension?
 * There really should be a lot more tests!
   * We might need ArgsSimulator to simulate HBM in order to test without an FPGA
   * Adding tests that exercise a real FPGA may be easier, and a good idea in any case...
-* A program to control capturing of packets (when FPGA images supports same)
 * Configuration of inter-packet gaps (i.e. jitter, maybe a Poisson distribution)
 * Record statistics over time, so they can be graphed
   * Sampling statistics in the FPGA would be more accurate, we could download
@@ -178,8 +202,13 @@ with the python package?)
 ### 0.3.0 (unreleased)
 - Add pcap load/dump methods to HbmPacketController and CnicFpga
 - Use new command-line infrastructure from ska-low-cbf-fpga
+- Add experimental tx/rx commands to cnic command-line interface
 - Use 4x FPGA memory buffers (each 4095MiB due to XRT limitations)
 - Read timestamps along with received packets
+- Add transmission rate parameter (Gbps)
+- Fix PTP interpretation (IEEE format, not fixed-point binary)
+- Add workaround for some machines crashing with pyxrt buffers >= 2GiB
+- Add status update print statements
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo
