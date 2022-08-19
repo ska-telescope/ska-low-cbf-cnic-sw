@@ -245,7 +245,13 @@ class HbmPacketController(FpgaPeripheral):
                 else:
                     writer.writepkt(data[:packet_size].tobytes())
                 n_packets += 1
-
+                # stop at rx_packets_to_capture could/should be done in FPGA?
+                if n_packets >= self.rx_packets_to_capture:
+                    break
+            else:
+                continue
+            break
+            # end stop at rx_packets_to_capture logic
         # end for each buffer loop
         print("Finished writing\n")
         total_bytes = n_packets * packet_size
