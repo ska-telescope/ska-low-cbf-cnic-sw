@@ -25,7 +25,48 @@ class PtpCommand(IntEnum):
 
 TIMESTAMP_BITS = 80
 TIMESTAMP_NS_BITS = 32
+
+
 # 48 bits integer, 32 bits of nanoseconds
+
+
+def combine_ptp_registers(
+    upper: IclField, lower: IclField, sub: IclField
+) -> int:
+    """Combine 3x PTP registers into an 80 bit PTP timestamp"""
+    return (upper.value << 64) | (lower.value << 32) | sub.value
+
+
+def datetime_from_str(time_str: str) -> datetime:
+    """
+    Convert user-supplied string to datetime object
+    :param time_str: "%Y-%m-%d %H:%M:%S"
+    (handling of other formats could be added here later)
+    """
+    return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+
+
+def split_datetime(t: datetime) -> (int, int, int):
+    """
+    Split a datetime into 3 register values
+    :param t: target time to be decoded
+    :return: seconds upper 32 bits, seconds lower 32 bits, sub seconds (nanoseconds)
+    """
+    seconds, fractional_seconds = divmod(t.timestamp(), 1)
+    seconds = int(seconds)
+    upper = seconds >> 32
+    lower = seconds & 0xFFFF_FFFF
+    sub_seconds = int(fractional_seconds * 1e9)
+    return upper, lower, sub_seconds
+
+
+def time_str_from_registers(
+    upper: IclField, lower: IclField, sub: IclField
+) -> str:
+    """Combine 3 PTP time registers and render as string"""
+    timestamp = unix_ts_from_ptp(combine_ptp_registers(upper, lower, sub))
+    dt = datetime.fromtimestamp(timestamp)
+    return str(dt)
 
 
 def unix_ts_from_ptp(ptp_timestamp: int) -> float:
@@ -176,32 +217,110 @@ class Ptp(FpgaPeripheral):
         self.user_mac_address = mac_address
         self.command(PtpCommand.RELOAD_PROFILE)
 
-    def set_start_time(self, start_time: datetime) -> None:
+    @property
+    def tx_start_time(self) -> IclField[str]:
+        """Read the scheduled transmission start time"""
+        return IclField(
+            description="Transmit Start Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.tx_start_ptp_seconds_upper,
+                self.tx_start_ptp_seconds_lower,
+                self.tx_start_ptp_sub_seconds,
+            ),
+        )
+
+    @tx_start_time.setter
+    def tx_start_time(self, start_time: str) -> None:
         """
         Schedule a transmission start time
-        :param start_time: time to start at
+        :param start_time: time to start at, see datetime_from_str for string format
         """
-        seconds, fractional_seconds = divmod(start_time.timestamp(), 1)
-        seconds = int(seconds)
-        self.schedule_ptp_seconds_upper = seconds >> 32
-        self.schedule_ptp_seconds_lower = seconds & 0xFFFF_FFFF
-        self.schedule_ptp_sub_seconds = int(fractional_seconds * 1e9)
-        self.schedule_control = 3  # bits 0 (reset) & 1 (start)
+        (
+            self.tx_start_ptp_seconds_upper,
+            self.tx_start_ptp_seconds_lower,
+            self.tx_start_ptp_sub_seconds,
+        ) = split_datetime(datetime_from_str(start_time))
+        # TODO configure schedule_control as bitfield/enum
+        self.schedule_control = 1 + 2  # bits 0 (reset) & 1 (tx start)
 
     @property
-    def scheduled_time(self) -> IclField[float]:
-        """Get scheduled start time as UNIX timestamp"""
+    def tx_stop_time(self) -> IclField[str]:
+        """Read the scheduled transmission stop time"""
         return IclField(
-            description="Scheduled start time (UNIX ts)",
-            type_=float,
-            value=unix_ts_from_ptp(self._scheduled_ptp_ts),
+            description="Transmit Stop Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.tx_stop_ptp_seconds_upper,
+                self.tx_stop_ptp_seconds_lower,
+                self.tx_stop_ptp_sub_seconds,
+            ),
         )
 
+    @tx_stop_time.setter
+    def tx_stop_time(self, stop_time: str) -> None:
+        """
+        Schedule a transmission stop time
+        :param stop_time: time to stop at, see datetime_from_str for string format
+        """
+        (
+            self.tx_stop_ptp_seconds_upper,
+            self.tx_stop_ptp_seconds_lower,
+            self.tx_stop_ptp_sub_seconds,
+        ) = split_datetime(datetime_from_str(stop_time))
+        # TODO configure schedule_control as bitfield/enum
+        self.schedule_control = 1 + 4  # bits 0 (reset) & 2 (tx stop)
+
     @property
-    def _scheduled_ptp_ts(self) -> int:
-        ptp_ts = (
-            (self.schedule_ptp_seconds_upper.value << 64)
-            | (self.schedule_ptp_seconds_lower.value << 32)
-            | self.schedule_ptp_sub_seconds.value
+    def rx_start_time(self) -> IclField[str]:
+        """Read the scheduled reception start time"""
+        return IclField(
+            description="Receive Start Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.rx_start_ptp_seconds_upper,
+                self.rx_start_ptp_seconds_lower,
+                self.rx_start_ptp_sub_seconds,
+            ),
         )
-        return ptp_ts
+
+    @rx_start_time.setter
+    def rx_start_time(self, start_time: str) -> None:
+        """
+        Schedule a reception start time
+        :param start_time: time to start at, see datetime_from_str for string format
+        """
+        (
+            self.rx_start_ptp_seconds_upper,
+            self.rx_start_ptp_seconds_lower,
+            self.rx_start_ptp_sub_seconds,
+        ) = split_datetime(datetime_from_str(start_time))
+        # TODO configure schedule_control as bitfield/enum
+        self.schedule_control = 1 + 8  # bits 0 (reset) & 3 (rx start)
+
+    @property
+    def rx_stop_time(self) -> IclField[str]:
+        """Read the scheduled reception stop time"""
+        return IclField(
+            description="Receive Stop Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.rx_stop_ptp_seconds_upper,
+                self.rx_stop_ptp_seconds_lower,
+                self.rx_stop_ptp_sub_seconds,
+            ),
+        )
+
+    @rx_stop_time.setter
+    def rx_stop_time(self, stop_time: str) -> None:
+        """
+        Schedule a reception stop time
+        :param stop_time: time to stop at, see datetime_from_str for string format
+        """
+        (
+            self.rx_stop_ptp_seconds_upper,
+            self.rx_stop_ptp_seconds_lower,
+            self.rx_stop_ptp_sub_seconds,
+        ) = split_datetime(datetime_from_str(stop_time))
+        # TODO configure schedule_control as bitfield/enum
+        self.schedule_control = 1 + 16  # bits 0 (reset) & 4 (rx stop)

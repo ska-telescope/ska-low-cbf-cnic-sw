@@ -8,9 +8,15 @@
 from datetime import datetime
 
 import pytest
-from ska_low_cbf_fpga import ArgsMap, ArgsSimulator
+from ska_low_cbf_fpga import ArgsMap, ArgsSimulator, IclField
 
-from ska_low_cbf_sw_cnic.ptp import Ptp, unix_ts_from_ptp
+from ska_low_cbf_sw_cnic.ptp import (
+    Ptp,
+    combine_ptp_registers,
+    datetime_from_str,
+    split_datetime,
+    unix_ts_from_ptp,
+)
 
 from .fpgamap_22032914 import FPGAMAP
 
@@ -31,24 +37,45 @@ class TestPtp:
         assert ptp.user_mac_address.value == TEST_ADDRESS
 
 
-# PTP ts has 32 bits of nanoseconds, top 48 bits are seconds.
-@pytest.mark.parametrize(
-    "ptp_ts, unix_ts",
-    [
-        (100_000_000, 0.1),
-        (900_000_000, 0.9),
-        (0x1234_0000_0000, 0x1234),
-        (0x1234_0000_0000 + 250_000_000, 0x1234 + 0.25),
-    ],
-)
 class TestTimestampConversion:
+    # PTP ts has 32 bits of nanoseconds, top 48 bits are seconds.
+    @pytest.mark.parametrize(
+        "ptp_ts, unix_ts",
+        [
+            (100_000_000, 0.1),
+            (900_000_000, 0.9),
+            (0x1234_0000_0000, 0x1234),
+            (0x1234_0000_0000 + 250_000_000, 0x1234 + 0.25),
+        ],
+    )
     def test_unix_ts_from_ptp(self, ptp_ts, unix_ts):
         """Test UNIX timestamp derivation from PTP 80-bit value"""
         assert unix_ts_from_ptp(ptp_ts) == unix_ts
 
-    def test_start_time(self, ptp, ptp_ts, unix_ts):
-        """Test setting PTP start time & read-back thereof"""
-        start_dt = datetime.fromtimestamp(unix_ts)
-        ptp.set_start_time(start_dt)
-        assert ptp._scheduled_ptp_ts == ptp_ts
-        assert ptp.scheduled_time.value == unix_ts
+    @pytest.mark.parametrize(
+        "string", ["1970-01-01 00:00:01", "2022-08-19 17:22:33"]
+    )
+    @pytest.mark.parametrize(
+        "param",
+        [
+            "tx_start",
+            "tx_stop",
+            "rx_start",
+            "rx_stop",
+        ],
+    )
+    def test_time_control_params(self, ptp, param, string):
+        """Check that the time string goes into the registers and comes out the same"""
+        # ICL interface uses, for example, "tx_start_time"
+        icl_attr = param + "_time"
+        setattr(ptp, icl_attr, string)
+
+        # Check the 3 registers are set
+        # (guards against use of wrong registers in ICL)
+        upper, lower, sub = split_datetime(datetime_from_str(string))
+        assert upper == getattr(ptp, param + "_ptp_seconds_upper")
+        assert lower == getattr(ptp, param + "_ptp_seconds_lower")
+        assert sub == getattr(ptp, param + "_ptp_sub_seconds")
+
+        # Check read-back as str
+        assert getattr(ptp, icl_attr) == string

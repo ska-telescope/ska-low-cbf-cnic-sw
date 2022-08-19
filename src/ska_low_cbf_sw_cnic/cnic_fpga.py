@@ -74,7 +74,9 @@ class CnicFpga(FpgaPersonality):
         burst_size: int = 1,
         burst_gap: typing.Union[int, None] = None,
         rate: float = 100.0,
-        start_time: typing.Union[datetime, None] = None,
+        start_time: typing.Union[str, None] = None,
+        start_now: bool = True,
+        stop_time: typing.Union[str, None] = None,
     ) -> None:
         """
         Transmit packets from a PCAP file
@@ -84,7 +86,8 @@ class CnicFpga(FpgaPersonality):
         :param burst_gap: packet burst period (ns), overrides rate
         :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         :param start_time: optional time to begin transmission at
-        (default None means begin immediately)
+        :param start_now: start transmitting immediately (ignored if start_time given)
+        :param stop_time: optional time to end transmission at
         """
         self.hbm_pktcontroller.tx_enable = False
         with open(in_filename, "rb") as in_file:
@@ -95,21 +98,31 @@ class CnicFpga(FpgaPersonality):
         self.hbm_pktcontroller.configure_tx(
             n_loops, burst_size, burst_gap, rate
         )
+        if stop_time:
+            print("Scheduling Tx stop time")
+            self.timeslave.tx_stop_time = stop_time
         if start_time:
-            print("Setting scheduled start time")
-            self.timeslave.set_start_time(start_time)
-        else:
+            print("Scheduling Tx start time")
+            self.timeslave.tx_start_time = start_time
+        elif start_now:
             print("Starting transmission")
             self.hbm_pktcontroller.start_tx()
 
     def receive_pcap(
-        self, out_filename: str, packet_size: int, n_packets: int = 0
+        self,
+        out_filename: str,
+        packet_size: int,
+        n_packets: int = 0,
+        start_time: typing.Union[str, None] = None,
+        stop_time: typing.Union[str, None] = None,
     ) -> None:
         """
         Receive packets into a PCAP file
         :param out_filename: File path to write to
         :param packet_size: only packets of this exact size are captured (bytes)
         :param n_packets: number of packets to receive
+        :param start_time: optional time to begin reception at
+        :param stop_time: optional time to end reception at
         """
         # cancel any existing Rx wait thread
         if self._rx_thread:
@@ -118,6 +131,13 @@ class CnicFpga(FpgaPersonality):
             self._rx_cancel.clear()
             if self._rx_thread.is_alive():
                 raise RuntimeError("Previous Rx thread didn't stop")
+
+        if stop_time:
+            print("Scheduling Rx stop time")
+            self.timeslave.rx_stop_time = stop_time
+        if start_time:
+            print("Scheduling Rx start time")
+            self.timeslave.rx_start_time = start_time
 
         print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
