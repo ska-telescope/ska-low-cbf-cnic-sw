@@ -309,7 +309,7 @@ class HbmPacketController(FpgaPeripheral):
         print(
             f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
         )
-        self.tx_total_number_tx_packets = n_packets
+        self.tx_packet_to_send = n_packets
         self.tx_packet_size = packet_size
         self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
         self.tx_axi_transactions = math.ceil(
@@ -348,9 +348,7 @@ class HbmPacketController(FpgaPeripheral):
             )
         self.tx_packets_per_burst = burst_size
         self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
-        self.tx_bursts = math.ceil(
-            self.tx_total_number_tx_packets / burst_size
-        )
+        self.tx_bursts = math.ceil(self.tx_packet_to_send / burst_size)
 
         if n_loops > 1:
             self.tx_loop_enable = True

@@ -70,13 +70,15 @@ class TestTimestampConversion:
         icl_attr = param + "_time"
         setattr(ptp, icl_attr, string)
 
-        # Check the 3 registers are set
+        # Check the 3 time registers are set
         # (guards against use of wrong registers in ICL)
         upper, lower, sub = split_datetime(datetime_from_str(string))
         print(upper, lower, sub)
         assert upper == getattr(ptp, param + "_ptp_seconds_upper").value
         assert lower == getattr(ptp, param + "_ptp_seconds_lower").value
         assert sub == getattr(ptp, param + "_ptp_sub_seconds").value
+
+        assert bool(getattr(ptp, "schedule_control_" + icl_attr))
 
         # Check read-back as str
         assert getattr(ptp, icl_attr) == string
