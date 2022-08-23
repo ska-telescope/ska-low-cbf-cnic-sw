@@ -158,6 +158,10 @@ def display_status_forever(fpga: FpgaPersonality):
     update_layout(layout, fpga)
     update_static_info(layout)
     with Live(layout, refresh_per_second=1, screen=True):
-        while True:
-            time.sleep(1)
-            update_layout(layout, fpga)
+        try:
+            while True:
+                time.sleep(1)
+                update_layout(layout, fpga)
+        except KeyboardInterrupt:
+            # Ctrl-C is how the user exits, no need to print a traceback
+            pass
