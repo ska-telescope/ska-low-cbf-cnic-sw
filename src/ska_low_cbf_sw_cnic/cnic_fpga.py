@@ -90,6 +90,8 @@ class CnicFpga(FpgaPersonality):
         :param stop_time: optional time to end transmission at
         """
         self.hbm_pktcontroller.tx_enable = False
+        self.timeslave.schedule_control_reset = 1
+
         with open(in_filename, "rb") as in_file:
             print("Loading file")
             self.hbm_pktcontroller.load_pcap(in_file)
@@ -102,6 +104,8 @@ class CnicFpga(FpgaPersonality):
         self.timeslave.tx_stop_time = stop_time
         print(f"Scheduling Tx start time: {start_time}")
         self.timeslave.tx_start_time = start_time
+        self.timeslave.schedule_control_reset = 0
+
         if start_now and not start_time:
             print("Starting transmission")
             self.hbm_pktcontroller.start_tx()
@@ -122,6 +126,7 @@ class CnicFpga(FpgaPersonality):
         :param start_time: optional time to begin reception at
         :param stop_time: optional time to end reception at
         """
+        self.timeslave.schedule_control_reset = 1
         # cancel any existing Rx wait thread
         if self._rx_thread:
             self._rx_cancel.set()
@@ -134,6 +139,7 @@ class CnicFpga(FpgaPersonality):
         self.timeslave.rx_stop_time = stop_time
         print(f"Scheduling Rx start time: {start_time}")
         self.timeslave.rx_start_time = start_time
+        self.timeslave.schedule_control_reset = 0
 
         print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
