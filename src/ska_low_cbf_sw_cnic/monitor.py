@@ -20,6 +20,7 @@ from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
 from ska_low_cbf_sw_cnic.ptp import TIME_STR_FORMAT, Ptp
 
 TX_STATUS_PARAMS = {
+    "tx_enable": "Enabled",
     "tx_running": "Running",
     "tx_packet_size": "Packet Size",
     "tx_packet_to_send": "Packets to Send",
