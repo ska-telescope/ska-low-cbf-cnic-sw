@@ -8,6 +8,7 @@
 PTP Peripheral ICL
 """
 from datetime import datetime
+from decimal import Decimal
 from enum import IntEnum
 
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
@@ -68,14 +69,14 @@ def time_str_from_registers(
 ) -> str:
     """Combine 3 PTP time registers and render as string"""
     timestamp = unix_ts_from_ptp(combine_ptp_registers(upper, lower, sub))
-    dt = datetime.fromtimestamp(timestamp)
+    dt = datetime.fromtimestamp(float(timestamp))
     return dt.strftime(TIME_STR_FORMAT)
 
 
-def unix_ts_from_ptp(ptp_timestamp: int) -> float:
+def unix_ts_from_ptp(ptp_timestamp: int) -> Decimal:
     """Get UNIX timestamp from 80 bit PTP value"""
     ns_mask = (1 << TIMESTAMP_NS_BITS) - 1
-    sub_seconds = (ptp_timestamp & ns_mask) / 1e9
+    sub_seconds = Decimal(ptp_timestamp & ns_mask) / Decimal(1e9)
     seconds = ptp_timestamp >> TIMESTAMP_NS_BITS
     return seconds + sub_seconds
 
@@ -221,8 +222,8 @@ class Ptp(FpgaPeripheral):
                     self.current_ptp_sub_seconds,
                 )
             ),
-            description="Current UNIX time",
-            type_=int,
+            description="Current time",
+            type_=str,
         )
 
     def command(self, cmd: PtpCommand) -> None:
@@ -267,7 +268,6 @@ class Ptp(FpgaPeripheral):
                 self.tx_start_ptp_sub_seconds,
             ) = split_datetime(datetime_from_str(start_time))
         self.schedule_control_tx_start_time = bool(start_time)
-        self._activate_schedule()
 
     @property
     def tx_stop_time(self) -> IclField[str]:
@@ -296,7 +296,6 @@ class Ptp(FpgaPeripheral):
                 self.tx_stop_ptp_sub_seconds,
             ) = split_datetime(datetime_from_str(stop_time))
         self.schedule_control_tx_stop_time = bool(stop_time)
-        self._activate_schedule()
 
     @property
     def rx_start_time(self) -> IclField[str]:
@@ -325,7 +324,6 @@ class Ptp(FpgaPeripheral):
                 self.rx_start_ptp_sub_seconds,
             ) = split_datetime(datetime_from_str(start_time))
         self.schedule_control_rx_start_time = bool(start_time)
-        self._activate_schedule()
 
     @property
     def rx_stop_time(self) -> IclField[str]:
@@ -354,9 +352,3 @@ class Ptp(FpgaPeripheral):
                 self.rx_stop_ptp_sub_seconds,
             ) = split_datetime(datetime_from_str(stop_time))
         self.schedule_control_rx_stop_time = bool(stop_time)
-        self._activate_schedule()
-
-    def _activate_schedule(self):
-        """Activates the Schedule Control registers"""
-        self.schedule_control_reset = 1
-        self.schedule_control_reset = 0
