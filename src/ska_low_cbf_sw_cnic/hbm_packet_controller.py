@@ -256,7 +256,7 @@ class HbmPacketController(FpgaPeripheral):
         print("Finished writing\n")
         total_bytes = n_packets * packet_size
         if timestamped:
-            duration = timestamp - first_ts
+            duration = float(timestamp - first_ts)
             data_rate_gbps = (8 * total_bytes / duration) / 1e9
             print(f"Capture duration {duration:.9f} s")
             print(f"Average data rate {data_rate_gbps:.3f} Gbps")
