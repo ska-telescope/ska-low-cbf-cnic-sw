@@ -53,7 +53,7 @@ class TestTimestampConversion:
     # Note time strings are interpreted as being in local time zone.
     # ("1970-01-01 00:00:01" in Australia gives a -ve unix timestamp!)
     @pytest.mark.parametrize(
-        "string", ["1970-01-01 20:00:01", "2022-08-19 17:22:33"]
+        "string", ["1970-01-01 20:00:01.000000", "2022-08-19 17:22:33.123456"]
     )
     @pytest.mark.parametrize(
         "param",

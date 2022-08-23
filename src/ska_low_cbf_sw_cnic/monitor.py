@@ -17,7 +17,7 @@ from rich.text import Text
 from ska_low_cbf_fpga import FpgaPeripheral, FpgaPersonality
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.ptp import Ptp
+from ska_low_cbf_sw_cnic.ptp import TIME_STR_FORMAT, Ptp
 
 TX_STATUS_PARAMS = {
     "tx_running": "Running",
@@ -105,14 +105,14 @@ def generate_ptp_table(ptp: Ptp) -> Table:
     )
     table.add_row("Domain number", f"{hex(ptp.profile_domain_num.value)}")
     table.add_row("MAC address", f"{ptp.mac_address.value}")
-    ptp_time = datetime.fromtimestamp(int(ptp.time.value))
-    table.add_row("PTP Time", f"{ptp_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    table.add_row("PTP Time", f"{ptp.time.value}")
     host_time = datetime.now()
-    table.add_row("Host Time", f"{host_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    table.add_row("Host Time", f"{host_time.strftime(TIME_STR_FORMAT)}")
     table.add_row("Transmit start time", f"{ptp.tx_start_time.value}")
     table.add_row("Transmit stop time", f"{ptp.tx_stop_time.value}")
     table.add_row("Receive start time", f"{ptp.rx_start_time.value}")
     table.add_row("Receive stop time", f"{ptp.rx_stop_time.value}")
+    table.add_row("Schedule Complete", f"{ptp.schedule_debug_complete.value}")
     # these are not really useful to end user but maybe for debugging
     # table.add_row("blk1_t1_sec", f"{ptp.blk1_t1_sec.value}")
     # table.add_row("blk1_t2_sec", f"{ptp.blk1_t2_sec.value}")

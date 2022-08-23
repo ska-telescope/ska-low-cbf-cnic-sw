@@ -28,6 +28,13 @@ class CnicCmdline(FpgaCmdline):
             "CNIC", "CNIC-specific Arguments"
         )
 
+        cnic_group.add_argument(
+            "--monitor",
+            "-o",
+            action="store_true",
+            help="Launch monitoring interface",
+        )
+
         # PTP options
         cnic_group.add_argument(
             "--ptp-domain",
@@ -69,7 +76,7 @@ class CnicCmdline(FpgaCmdline):
             base_cmd = str.lower(command[0])
             if base_cmd == "monitor":
                 monitor.display_status_forever(fpga)
-            elif base_cmd == "tx":
+            if base_cmd == "tx":
                 assert (
                     2 <= len(command) <= 4
                 ), "use 'tx <filename> [start_time [stop_time]]'"
@@ -98,6 +105,9 @@ class CnicCmdline(FpgaCmdline):
 
             else:
                 raise NotImplementedError(f"No such command {command[0]}")
+
+            if self.args.monitor:
+                monitor.display_status_forever(fpga)
 
 
 def main():

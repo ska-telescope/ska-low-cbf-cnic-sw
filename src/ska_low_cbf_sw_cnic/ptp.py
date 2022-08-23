@@ -23,10 +23,10 @@ class PtpCommand(IntEnum):
     PTP_MODE = 6
 
 
+TIME_STR_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
+
 TIMESTAMP_BITS = 80
 TIMESTAMP_NS_BITS = 32
-
-
 # 48 bits integer, 32 bits of nanoseconds
 
 
@@ -40,10 +40,13 @@ def combine_ptp_registers(
 def datetime_from_str(time_str: str) -> datetime:
     """
     Convert user-supplied string to datetime object
-    :param time_str: "%Y-%m-%d %H:%M:%S"
-    (handling of other formats could be added here later)
+    :param time_str: "%Y-%m-%d %H:%M:%S[.%f]"
+    (microseconds is optional)
     """
-    return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+    try:
+        return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
 
 
 def split_datetime(t: datetime) -> (int, int, int):
@@ -66,7 +69,7 @@ def time_str_from_registers(
     """Combine 3 PTP time registers and render as string"""
     timestamp = unix_ts_from_ptp(combine_ptp_registers(upper, lower, sub))
     dt = datetime.fromtimestamp(timestamp)
-    return str(dt)
+    return dt.strftime(TIME_STR_FORMAT)
 
 
 def unix_ts_from_ptp(ptp_timestamp: int) -> float:
@@ -191,12 +194,32 @@ class Ptp(FpgaPeripheral):
         )
 
     @property
-    def time(self) -> IclField[int]:
+    def unix_timestamp(self) -> IclField[int]:
         """Get current time (UNIX ts)"""
         return IclField(
             value=(
-                (self.current_ptp_seconds_upper.value << 32)
-                | self.current_ptp_seconds_lower.value
+                unix_ts_from_ptp(
+                    combine_ptp_registers(
+                        self.current_ptp_seconds_upper,
+                        self.current_ptp_seconds_lower,
+                        self.current_ptp_sub_seconds,
+                    )
+                )
+            ),
+            description="Current UNIX time",
+            type_=int,
+        )
+
+    @property
+    def time(self) -> IclField[str]:
+        """Get current time"""
+        return IclField(
+            value=(
+                time_str_from_registers(
+                    self.current_ptp_seconds_upper,
+                    self.current_ptp_seconds_lower,
+                    self.current_ptp_sub_seconds,
+                )
             ),
             description="Current UNIX time",
             type_=int,
