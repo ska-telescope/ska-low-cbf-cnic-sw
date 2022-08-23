@@ -70,10 +70,24 @@ class CnicCmdline(FpgaCmdline):
             if base_cmd == "monitor":
                 monitor.display_status_forever(fpga)
             elif base_cmd == "tx":
-                assert len(command) == 2, "use 'tx <filename>'"
-                print(f"Transmitting {command[1]}")
+                assert (
+                    2 <= len(command) <= 4
+                ), "use 'tx <filename> [start_time [stop_time]]'"
+                filename = command[1]
+                print(f"Transmitting {filename}")
+                start_time = None
+                stop_time = None
+                try:
+                    start_time = command[2]
+                    stop_time = command[3]
+                except IndexError:
+                    pass
                 # TODO - other transmit parameters...
-                fpga.transmit_pcap(command[1])
+                fpga.transmit_pcap(
+                    in_filename=filename,
+                    start_time=start_time,
+                    stop_time=stop_time,
+                )
             elif base_cmd == "rx":
                 assert (
                     len(command) == 4

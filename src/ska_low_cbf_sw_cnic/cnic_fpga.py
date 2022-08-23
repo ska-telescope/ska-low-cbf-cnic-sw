@@ -98,13 +98,11 @@ class CnicFpga(FpgaPersonality):
         self.hbm_pktcontroller.configure_tx(
             n_loops, burst_size, burst_gap, rate
         )
-        if stop_time:
-            print("Scheduling Tx stop time")
-            self.timeslave.tx_stop_time = stop_time
-        if start_time:
-            print("Scheduling Tx start time")
-            self.timeslave.tx_start_time = start_time
-        elif start_now:
+        print(f"Scheduling Tx stop time: {stop_time}")
+        self.timeslave.tx_stop_time = stop_time
+        print(f"Scheduling Tx start time: {start_time}")
+        self.timeslave.tx_start_time = start_time
+        if start_now and not start_time:
             print("Starting transmission")
             self.hbm_pktcontroller.start_tx()
 
@@ -132,12 +130,10 @@ class CnicFpga(FpgaPersonality):
             if self._rx_thread.is_alive():
                 raise RuntimeError("Previous Rx thread didn't stop")
 
-        if stop_time:
-            print("Scheduling Rx stop time")
-            self.timeslave.rx_stop_time = stop_time
-        if start_time:
-            print("Scheduling Rx start time")
-            self.timeslave.rx_start_time = start_time
+        print(f"Scheduling Rx stop time: {stop_time}")
+        self.timeslave.rx_stop_time = stop_time
+        print(f"Scheduling Rx start time: {start_time}")
+        self.timeslave.rx_start_time = start_time
 
         print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)

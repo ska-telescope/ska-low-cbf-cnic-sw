@@ -5,20 +5,18 @@
 # Distributed under the terms of the CSIRO Open Source Software Licence
 # Agreement. See LICENSE for more info
 """PTP (Precision Time Protocol) Peripheral Tests"""
-from datetime import datetime
 
 import pytest
 from ska_low_cbf_fpga import ArgsMap, ArgsSimulator, IclField
 
 from ska_low_cbf_sw_cnic.ptp import (
     Ptp,
-    combine_ptp_registers,
     datetime_from_str,
     split_datetime,
     unix_ts_from_ptp,
 )
 
-from .fpgamap_22032914 import FPGAMAP
+from .fpgamap_22081921 import FPGAMAP
 
 
 @pytest.fixture
@@ -52,8 +50,10 @@ class TestTimestampConversion:
         """Test UNIX timestamp derivation from PTP 80-bit value"""
         assert unix_ts_from_ptp(ptp_ts) == unix_ts
 
+    # Note time strings are interpreted as being in local time zone.
+    # ("1970-01-01 00:00:01" in Australia gives a -ve unix timestamp!)
     @pytest.mark.parametrize(
-        "string", ["1970-01-01 00:00:01", "2022-08-19 17:22:33"]
+        "string", ["1970-01-01 20:00:01", "2022-08-19 17:22:33"]
     )
     @pytest.mark.parametrize(
         "param",
@@ -73,9 +73,10 @@ class TestTimestampConversion:
         # Check the 3 registers are set
         # (guards against use of wrong registers in ICL)
         upper, lower, sub = split_datetime(datetime_from_str(string))
-        assert upper == getattr(ptp, param + "_ptp_seconds_upper")
-        assert lower == getattr(ptp, param + "_ptp_seconds_lower")
-        assert sub == getattr(ptp, param + "_ptp_sub_seconds")
+        print(upper, lower, sub)
+        assert upper == getattr(ptp, param + "_ptp_seconds_upper").value
+        assert lower == getattr(ptp, param + "_ptp_seconds_lower").value
+        assert sub == getattr(ptp, param + "_ptp_sub_seconds").value
 
         # Check read-back as str
         assert getattr(ptp, icl_attr) == string

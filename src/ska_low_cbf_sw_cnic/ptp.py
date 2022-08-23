@@ -235,14 +235,16 @@ class Ptp(FpgaPeripheral):
         """
         Schedule a transmission start time
         :param start_time: time to start at, see datetime_from_str for string format
+        use empty string or None to disable
         """
-        (
-            self.tx_start_ptp_seconds_upper,
-            self.tx_start_ptp_seconds_lower,
-            self.tx_start_ptp_sub_seconds,
-        ) = split_datetime(datetime_from_str(start_time))
-        # TODO configure schedule_control as bitfield/enum
-        self.schedule_control = 1 + 2  # bits 0 (reset) & 1 (tx start)
+        if start_time:
+            (
+                self.tx_start_ptp_seconds_upper,
+                self.tx_start_ptp_seconds_lower,
+                self.tx_start_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(start_time))
+        self.schedule_control_tx_start_time = bool(start_time)
+        self._activate_schedule()
 
     @property
     def tx_stop_time(self) -> IclField[str]:
@@ -262,14 +264,16 @@ class Ptp(FpgaPeripheral):
         """
         Schedule a transmission stop time
         :param stop_time: time to stop at, see datetime_from_str for string format
+        use empty string or None to disable
         """
-        (
-            self.tx_stop_ptp_seconds_upper,
-            self.tx_stop_ptp_seconds_lower,
-            self.tx_stop_ptp_sub_seconds,
-        ) = split_datetime(datetime_from_str(stop_time))
-        # TODO configure schedule_control as bitfield/enum
-        self.schedule_control = 1 + 4  # bits 0 (reset) & 2 (tx stop)
+        if stop_time:
+            (
+                self.tx_stop_ptp_seconds_upper,
+                self.tx_stop_ptp_seconds_lower,
+                self.tx_stop_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(stop_time))
+        self.schedule_control_tx_stop_time = bool(stop_time)
+        self._activate_schedule()
 
     @property
     def rx_start_time(self) -> IclField[str]:
@@ -289,14 +293,16 @@ class Ptp(FpgaPeripheral):
         """
         Schedule a reception start time
         :param start_time: time to start at, see datetime_from_str for string format
+        use empty string or None to disable
         """
-        (
-            self.rx_start_ptp_seconds_upper,
-            self.rx_start_ptp_seconds_lower,
-            self.rx_start_ptp_sub_seconds,
-        ) = split_datetime(datetime_from_str(start_time))
-        # TODO configure schedule_control as bitfield/enum
-        self.schedule_control = 1 + 8  # bits 0 (reset) & 3 (rx start)
+        if start_time:
+            (
+                self.rx_start_ptp_seconds_upper,
+                self.rx_start_ptp_seconds_lower,
+                self.rx_start_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(start_time))
+        self.schedule_control_rx_start_time = bool(start_time)
+        self._activate_schedule()
 
     @property
     def rx_stop_time(self) -> IclField[str]:
@@ -316,11 +322,18 @@ class Ptp(FpgaPeripheral):
         """
         Schedule a reception stop time
         :param stop_time: time to stop at, see datetime_from_str for string format
+        use empty string or None to disable
         """
-        (
-            self.rx_stop_ptp_seconds_upper,
-            self.rx_stop_ptp_seconds_lower,
-            self.rx_stop_ptp_sub_seconds,
-        ) = split_datetime(datetime_from_str(stop_time))
-        # TODO configure schedule_control as bitfield/enum
-        self.schedule_control = 1 + 16  # bits 0 (reset) & 4 (rx stop)
+        if stop_time:
+            (
+                self.rx_stop_ptp_seconds_upper,
+                self.rx_stop_ptp_seconds_lower,
+                self.rx_stop_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(stop_time))
+        self.schedule_control_rx_stop_time = bool(stop_time)
+        self._activate_schedule()
+
+    def _activate_schedule(self):
+        """Activates the Schedule Control registers"""
+        self.schedule_control_reset = 1
+        self.schedule_control_reset = 0
