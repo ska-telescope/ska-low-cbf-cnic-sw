@@ -11,7 +11,6 @@ CNIC FPGA Firmware ICL (Instrument Control Layer)
 import logging
 import threading
 import typing
-from datetime import datetime
 
 from ska_low_cbf_fpga import ArgsFpgaInterface, ArgsMap, FpgaPersonality
 

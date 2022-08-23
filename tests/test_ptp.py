@@ -8,7 +8,7 @@
 from decimal import Decimal
 
 import pytest
-from ska_low_cbf_fpga import ArgsMap, ArgsSimulator, IclField
+from ska_low_cbf_fpga import ArgsMap, ArgsSimulator
 
 from ska_low_cbf_sw_cnic.ptp import (
     Ptp,
