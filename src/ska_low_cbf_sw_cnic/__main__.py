@@ -76,7 +76,7 @@ class CnicCmdline(FpgaCmdline):
             base_cmd = str.lower(command[0])
             if base_cmd == "monitor":
                 monitor.display_status_forever(fpga)
-            if base_cmd == "tx":
+            elif base_cmd == "tx":
                 assert (
                     2 <= len(command) <= 4
                 ), "use 'tx <filename> [start_time [stop_time]]'"
