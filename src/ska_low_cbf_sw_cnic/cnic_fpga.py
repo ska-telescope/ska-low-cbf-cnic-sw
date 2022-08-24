@@ -10,14 +10,23 @@ CNIC FPGA Firmware ICL (Instrument Control Layer)
 """
 import logging
 import threading
+import time
 import typing
 
-from ska_low_cbf_fpga import ArgsFpgaInterface, ArgsMap, FpgaPersonality
+from ska_low_cbf_fpga import (
+    ArgsFpgaInterface,
+    ArgsMap,
+    FpgaPersonality,
+    IclField,
+)
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
 from ska_low_cbf_sw_cnic.ptp import Ptp
 
 RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
+LOAD_SLEEP_TIME = (
+    5  # wait this many seconds between checking if Load is finished
+)
 
 
 class CnicFpga(FpgaPersonality):
@@ -51,6 +60,8 @@ class CnicFpga(FpgaPersonality):
         self._configure_ptp(ptp_domain)
         self._rx_cancel = threading.Event()
         self._rx_thread = None
+        self._load_thread = None
+        self._requested_pcap = None
 
     def _configure_ptp(self, ptp_domain: int):
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
@@ -66,6 +77,85 @@ class CnicFpga(FpgaPersonality):
             f"  PTP MAC address: {self.timeslave.mac_address.value}"
         )
 
+    def prepare_transmit(
+        self,
+        in_filename: str,
+        n_loops: int = 1,
+        burst_size: int = 1,
+        burst_gap: typing.Union[int, None] = None,
+        rate: float = 100.0,
+    ) -> None:
+        """
+        Prepare for transmission
+        :param in_filename: input PCAP(NG) file path
+        :param n_loops: number of loops
+        :param burst_size: packets per burst
+        :param burst_gap: packet burst period (ns), overrides rate
+        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        """
+        if self._load_thread_active:
+            raise RuntimeError(
+                f"Loading {self._requested_pcap} still in progress!"
+            )
+        self._requested_pcap = in_filename
+
+        self.hbm_pktcontroller.tx_enable = False
+        self.timeslave.schedule_control_reset = 1
+        self.hbm_pktcontroller.configure_tx(
+            n_loops, burst_size, burst_gap, rate
+        )
+
+        if self.hbm_pktcontroller.loaded_pcap.value != self._requested_pcap:
+            self._load_thread = threading.Thread(
+                target=self.hbm_pktcontroller.load_pcap, args=(in_filename,)
+            )
+            self._load_thread.start()
+
+    @property
+    def _load_thread_active(self) -> bool:
+        """Is the PCAP load thread active?"""
+        if self._load_thread:
+            if self._load_thread.is_alive():
+                return True
+            else:
+                self._load_thread.join()
+                self._load_thread = None
+        return False
+
+    def ready_to_transmit(self) -> IclField[bool]:
+        """Can we transmit? i.e. Is our PCAP file loaded?"""
+        value = False
+        if self._requested_pcap and not self._load_thread_active:
+            self._load_thread.join()
+            value = (
+                self.hbm_pktcontroller.loaded_pcap.value
+                == self._requested_pcap
+            )
+        return IclField(
+            description="CNIC Ready to Transmit", type_=bool, value=value
+        )
+
+    def begin_transmit(
+        self,
+        start_time: typing.Union[str, None] = None,
+        stop_time: typing.Union[str, None] = None,
+    ) -> None:
+        """
+        Begin Transmission (either now or later)
+        :param start_time: optional time to begin transmission at
+        (start now if not otherwise specified)
+        :param stop_time: optional time to end transmission at
+        """
+        print(f"Scheduling Tx stop time: {stop_time}")
+        self.timeslave.tx_stop_time = stop_time
+        print(f"Scheduling Tx start time: {start_time}")
+        self.timeslave.tx_start_time = start_time
+        self.timeslave.schedule_control_reset = 0
+
+        if not start_time:
+            print("Starting transmission")
+            self.hbm_pktcontroller.start_tx()
+
     def transmit_pcap(
         self,
         in_filename: str,
@@ -74,7 +164,6 @@ class CnicFpga(FpgaPersonality):
         burst_gap: typing.Union[int, None] = None,
         rate: float = 100.0,
         start_time: typing.Union[str, None] = None,
-        start_now: bool = True,
         stop_time: typing.Union[str, None] = None,
     ) -> None:
         """
@@ -85,29 +174,15 @@ class CnicFpga(FpgaPersonality):
         :param burst_gap: packet burst period (ns), overrides rate
         :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         :param start_time: optional time to begin transmission at
-        :param start_now: start transmitting immediately (ignored if start_time given)
+        (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at
         """
-        self.hbm_pktcontroller.tx_enable = False
-        self.timeslave.schedule_control_reset = 1
-
-        with open(in_filename, "rb") as in_file:
-            print("Loading file")
-            self.hbm_pktcontroller.load_pcap(in_file)
-            print("Loading complete")
-        print("Configuring Tx params")
-        self.hbm_pktcontroller.configure_tx(
-            n_loops, burst_size, burst_gap, rate
+        self.prepare_transmit(
+            in_filename, n_loops, burst_size, burst_gap, rate
         )
-        print(f"Scheduling Tx stop time: {stop_time}")
-        self.timeslave.tx_stop_time = stop_time
-        print(f"Scheduling Tx start time: {start_time}")
-        self.timeslave.tx_start_time = start_time
-        self.timeslave.schedule_control_reset = 0
-
-        if start_now and not start_time:
-            print("Starting transmission")
-            self.hbm_pktcontroller.start_tx()
+        while self._load_thread_active:
+            time.sleep(LOAD_SLEEP_TIME)
+        self.begin_transmit(start_time, stop_time)
 
     def receive_pcap(
         self,
@@ -172,6 +247,5 @@ class CnicFpga(FpgaPersonality):
                 break
             print(".", end="", flush=True)
 
-        print("\nWriting to file")
-        with open(out_filename, "wb") as out_file:
-            self.hbm_pktcontroller.dump_pcap(out_file, packet_size)
+        print("")
+        self.hbm_pktcontroller.dump_pcap(out_filename, packet_size)

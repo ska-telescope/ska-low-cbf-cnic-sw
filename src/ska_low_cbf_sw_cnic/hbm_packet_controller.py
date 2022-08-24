@@ -89,6 +89,7 @@ class HbmPacketController(FpgaPeripheral):
         self._buffer_offsets = np.insert(hbm_end_addresses, 0, 0)
         """Virtual addresses of start/end of each HBM buffer
         (Note: n+1 elements, last element is end of last buffer)"""
+        self._loaded_pcap = None
 
     @property
     def tx_packet_count(self) -> IclField[int]:
@@ -147,7 +148,18 @@ class HbmPacketController(FpgaPeripheral):
                 start_buffer + 1, data[first_size:], 0
             )
 
-    def dump_pcap(
+    def dump_pcap(self, out_filename: str, packet_size: int):
+        """
+        Dump a PCAP(NG) file to disk from HBM
+        :param out_filename: file to save to
+        :param packet_size: Number of Bytes used for each packet
+        :return:
+        """
+        print(f"Writing to {out_filename}")
+        with open(out_filename, "wb") as out_file:
+            self._dump_pcap(out_file, packet_size)
+
+    def _dump_pcap(
         self,
         out_file: typing.BinaryIO,
         packet_size: int,
@@ -268,7 +280,29 @@ class HbmPacketController(FpgaPeripheral):
             )
         )
 
-    def load_pcap(self, in_file: typing.BinaryIO) -> None:
+    @property
+    def loaded_pcap(self) -> IclField[str]:
+        return IclField(
+            description="Last loaded PCAP file name",
+            type_=str,
+            value=self._loaded_pcap,
+        )
+
+    def load_pcap(self, in_filename: str) -> None:
+        """
+        Load a PCAP(NG) file from disk to FPGA
+        :param in_filename: path to input PCAP(NG) file
+        """
+        if self._loaded_pcap == in_filename:
+            return
+        self._loaded_pcap = None
+        with open(in_filename, "rb") as in_file:
+            print(f"Loading from {in_filename}")
+            self._load_pcap(in_file)
+            self._loaded_pcap = in_filename
+            print("Loading complete")
+
+    def _load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
         Load a PCAP(NG) file from disk to FPGA
         :param in_file: input PCAP(NG) file
@@ -330,6 +364,8 @@ class HbmPacketController(FpgaPeripheral):
         :param burst_gap: packet burst period (ns), overrides rate
         :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         """
+        print("Configuring Tx params")
+
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
@@ -358,6 +394,10 @@ class HbmPacketController(FpgaPeripheral):
         """
         Start transmitting packets
         """
+        # if _loaded_pcap was stored in the FPGA, we could do someting like:
+        #   if not _loaded_pcap:
+        #       raise RuntimeError("No PCAP loaded")
+        # but since it's only in software, we will defer to the user's judgement
         self.tx_enable = 0
         self.tx_enable = 1
 
@@ -368,6 +408,7 @@ class HbmPacketController(FpgaPeripheral):
         :param n_packets: number of packets to receive
         """
         self.rx_enable_capture = 0
+        self._loaded_pcap = None
         self.rx_packet_size = packet_size
         self.rx_packets_to_capture = n_packets
         self.rx_reset_capture = 1
