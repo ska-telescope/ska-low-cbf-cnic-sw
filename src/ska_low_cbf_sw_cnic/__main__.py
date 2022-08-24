@@ -57,7 +57,7 @@ class CnicCmdline(FpgaCmdline):
                 EXPERIMENTAL COMMAND INTERFACE
                 Available commands:
                 \tmonitor
-                \ttx <filename>
+                \ttx <filename> [rate [start_time [stop_time]]]
                 \trx <filename> <packet size> <n packets>
                 """
             ),
@@ -78,15 +78,17 @@ class CnicCmdline(FpgaCmdline):
                 monitor.display_status_forever(fpga)
             elif base_cmd == "tx":
                 assert (
-                    2 <= len(command) <= 4
-                ), "use 'tx <filename> [start_time [stop_time]]'"
+                    2 <= len(command) <= 5
+                ), "use 'tx <filename> [rate [start_time [stop_time]]]'"
                 filename = command[1]
                 print(f"Transmitting {filename}")
                 start_time = None
                 stop_time = None
+                rate = 50.0
                 try:
-                    start_time = command[2]
-                    stop_time = command[3]
+                    rate = float(command[2])
+                    start_time = command[3]
+                    stop_time = command[4]
                 except IndexError:
                     pass
                 # TODO - other transmit parameters...
@@ -94,6 +96,7 @@ class CnicCmdline(FpgaCmdline):
                     in_filename=filename,
                     start_time=start_time,
                     stop_time=stop_time,
+                    rate=rate,
                 )
             elif base_cmd == "rx":
                 assert (
