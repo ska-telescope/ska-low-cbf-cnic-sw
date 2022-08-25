@@ -1,10 +1,9 @@
 import argparse
-import json
 import os
+import sys
 import typing
 
 import dpkt
-from scapy.all import UDP, rdpcap
 
 
 def compare_n_packets(
@@ -18,30 +17,28 @@ def compare_n_packets(
     :param dport: destination port of interest (filter applied to `packets_capture`)
     :return: listing of differing packet indices (dport mismatches not counted),
     int number of packets compared
+    :raises StopIteration: if packets_capture runs out before packets
     """
 
-    # TODO reinstate this check somehow...
-    # if len(packets) != len(packets_capture):
-    #     print(
-    #         "WARNING! Capture files not same length. "
-    #         f"{len(packets)} packets vs {len(packets_capture)} packets"
-    #     )
     index = 0
     differences = []
-    for (src_ts, src_packet), (cap_ts, cap_packet) in zip(
-        packets, packets_capture
-    ):
-        eth_cap = dpkt.ethernet.Ethernet(cap_packet)
-        if (
-            eth_cap.type == dpkt.ethernet.ETH_TYPE_IP
-            and eth_cap.data.p == dpkt.ip.IP_PROTO_UDP
-            and eth_cap.data.data.dport == dport
-        ):
-            if cap_packet != src_packet:
-                differences.append(index)
-            index += 1
-            if max_packets and index > max_packets:
+    for (src_ts, src_packet) in packets:
+        # skip over captured packets with the wrong dport
+        while True:
+            (cap_ts, cap_packet) = next(packets_capture)
+            eth_cap = dpkt.ethernet.Ethernet(cap_packet)
+            if (
+                eth_cap.type == dpkt.ethernet.ETH_TYPE_IP
+                and eth_cap.data.p == dpkt.ip.IP_PROTO_UDP
+                and eth_cap.data.data.dport == dport
+            ):
                 break
+
+        if cap_packet != src_packet:
+            differences.append(index)
+        index += 1
+        if max_packets and index > max_packets:
+            break
     return differences, index
 
 
@@ -84,16 +81,24 @@ def main():
 
     args = argparser.parse_args()
 
-    differences, n_comp = compare_n_packets(
-        args.packets,
-        create_reader(args.input[0]),
-        create_reader(args.input[1]),
-        args.dport,
-    )
+    try:
+        differences, n_comp = compare_n_packets(
+            args.packets,
+            create_reader(args.input[0]),
+            create_reader(args.input[1]),
+            args.dport,
+        )
+    except StopIteration:
+        print(
+            f"{args.input[1].name} does not have enough packets to finish comparison"
+        )
+        sys.exit(2)
+
     if n_comp > 0 and len(differences) == 0:
         print(f"Two files contain same packets ({n_comp} packets compared)")
     elif n_comp == 0:
         print("No packets compared! (check dport)")
+        sys.exit(3)
     else:
         print(
             (
@@ -104,6 +109,7 @@ def main():
         )
         for line in differences:
             args.report.write(f"{line}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
