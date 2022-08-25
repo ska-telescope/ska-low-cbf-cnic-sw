@@ -8,6 +8,7 @@
 PTP Peripheral ICL
 """
 from datetime import datetime
+from decimal import Decimal
 from enum import IntEnum
 
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
@@ -23,15 +24,59 @@ class PtpCommand(IntEnum):
     PTP_MODE = 6
 
 
+TIME_STR_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
+
 TIMESTAMP_BITS = 80
 TIMESTAMP_NS_BITS = 32
 # 48 bits integer, 32 bits of nanoseconds
 
 
-def unix_ts_from_ptp(ptp_timestamp: int) -> float:
+def combine_ptp_registers(
+    upper: IclField, lower: IclField, sub: IclField
+) -> int:
+    """Combine 3x PTP registers into an 80 bit PTP timestamp"""
+    return (upper.value << 64) | (lower.value << 32) | sub.value
+
+
+def datetime_from_str(time_str: str) -> datetime:
+    """
+    Convert user-supplied string to datetime object
+    :param time_str: "%Y-%m-%d %H:%M:%S[.%f]"
+    (microseconds is optional)
+    """
+    try:
+        return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
+
+
+def split_datetime(t: datetime) -> (int, int, int):
+    """
+    Split a datetime into 3 register values
+    :param t: target time to be decoded
+    :return: seconds upper 32 bits, seconds lower 32 bits, sub seconds (nanoseconds)
+    """
+    seconds, fractional_seconds = divmod(t.timestamp(), 1)
+    seconds = int(seconds)
+    upper = seconds >> 32
+    lower = seconds & 0xFFFF_FFFF
+    sub_seconds = int(fractional_seconds * 1e9)
+    return upper, lower, sub_seconds
+
+
+def time_str_from_registers(
+    upper: IclField, lower: IclField, sub: IclField
+) -> str:
+    """Combine 3 PTP time registers and render as string"""
+    timestamp = unix_ts_from_ptp(combine_ptp_registers(upper, lower, sub))
+    dt = datetime.fromtimestamp(float(timestamp))
+    return dt.strftime(TIME_STR_FORMAT)
+
+
+def unix_ts_from_ptp(ptp_timestamp: int) -> Decimal:
     """Get UNIX timestamp from 80 bit PTP value"""
     ns_mask = (1 << TIMESTAMP_NS_BITS) - 1
-    sub_seconds = (ptp_timestamp & ns_mask) / 1e9
+    sub_seconds = Decimal(ptp_timestamp & ns_mask) / Decimal(1e9)
     seconds = ptp_timestamp >> TIMESTAMP_NS_BITS
     return seconds + sub_seconds
 
@@ -93,6 +138,7 @@ class Ptp(FpgaPeripheral):
                 address=self["data"].address + offset,
                 description=item,
                 value=self["data"][offset],
+                type_=int,
             )
 
         return super().__getattr__(item)
@@ -118,6 +164,7 @@ class Ptp(FpgaPeripheral):
         return IclField(
             description="Low 3 bytes of MAC address",
             value=(a << 16) | (b << 8) | c,
+            type_=int,
         )
 
     @user_mac_address.setter
@@ -147,18 +194,39 @@ class Ptp(FpgaPeripheral):
                 for _ in range(0, 6, 2)
             ).upper(),
             description="Full MAC address",
+            type_=str,
         )
 
     @property
-    def time(self) -> IclField[int]:
+    def unix_timestamp(self) -> IclField[int]:
         """Get current time (UNIX ts)"""
         return IclField(
             value=(
-                (self.current_ptp_seconds_upper.value << 32)
-                | self.current_ptp_seconds_lower.value
+                unix_ts_from_ptp(
+                    combine_ptp_registers(
+                        self.current_ptp_seconds_upper,
+                        self.current_ptp_seconds_lower,
+                        self.current_ptp_sub_seconds,
+                    )
+                )
             ),
             description="Current UNIX time",
             type_=int,
+        )
+
+    @property
+    def time(self) -> IclField[str]:
+        """Get current time"""
+        return IclField(
+            value=(
+                time_str_from_registers(
+                    self.current_ptp_seconds_upper,
+                    self.current_ptp_seconds_lower,
+                    self.current_ptp_sub_seconds,
+                )
+            ),
+            description="Current time",
+            type_=str,
         )
 
     def command(self, cmd: PtpCommand) -> None:
@@ -176,32 +244,114 @@ class Ptp(FpgaPeripheral):
         self.user_mac_address = mac_address
         self.command(PtpCommand.RELOAD_PROFILE)
 
-    def set_start_time(self, start_time: datetime) -> None:
+    @property
+    def tx_start_time(self) -> IclField[str]:
+        """Read the scheduled transmission start time"""
+        return IclField(
+            description="Transmit Start Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.tx_start_ptp_seconds_upper,
+                self.tx_start_ptp_seconds_lower,
+                self.tx_start_ptp_sub_seconds,
+            ),
+        )
+
+    @tx_start_time.setter
+    def tx_start_time(self, start_time: str) -> None:
         """
         Schedule a transmission start time
-        :param start_time: time to start at
+        :param start_time: time to start at, see datetime_from_str for string format
+        use empty string or None to disable
         """
-        seconds, fractional_seconds = divmod(start_time.timestamp(), 1)
-        seconds = int(seconds)
-        self.schedule_ptp_seconds_upper = seconds >> 32
-        self.schedule_ptp_seconds_lower = seconds & 0xFFFF_FFFF
-        self.schedule_ptp_sub_seconds = int(fractional_seconds * 1e9)
-        self.schedule_control = 3  # bits 0 (reset) & 1 (start)
+        if start_time:
+            (
+                self.tx_start_ptp_seconds_upper,
+                self.tx_start_ptp_seconds_lower,
+                self.tx_start_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(start_time))
+        self.schedule_control_tx_start_time = bool(start_time)
 
     @property
-    def scheduled_time(self) -> IclField[float]:
-        """Get scheduled start time as UNIX timestamp"""
+    def tx_stop_time(self) -> IclField[str]:
+        """Read the scheduled transmission stop time"""
         return IclField(
-            description="Scheduled start time (UNIX ts)",
-            type_=float,
-            value=unix_ts_from_ptp(self._scheduled_ptp_ts),
+            description="Transmit Stop Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.tx_stop_ptp_seconds_upper,
+                self.tx_stop_ptp_seconds_lower,
+                self.tx_stop_ptp_sub_seconds,
+            ),
         )
 
+    @tx_stop_time.setter
+    def tx_stop_time(self, stop_time: str) -> None:
+        """
+        Schedule a transmission stop time
+        :param stop_time: time to stop at, see datetime_from_str for string format
+        use empty string or None to disable
+        """
+        if stop_time:
+            (
+                self.tx_stop_ptp_seconds_upper,
+                self.tx_stop_ptp_seconds_lower,
+                self.tx_stop_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(stop_time))
+        self.schedule_control_tx_stop_time = bool(stop_time)
+
     @property
-    def _scheduled_ptp_ts(self) -> int:
-        ptp_ts = (
-            (self.schedule_ptp_seconds_upper.value << 64)
-            | (self.schedule_ptp_seconds_lower.value << 32)
-            | self.schedule_ptp_sub_seconds.value
+    def rx_start_time(self) -> IclField[str]:
+        """Read the scheduled reception start time"""
+        return IclField(
+            description="Receive Start Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.rx_start_ptp_seconds_upper,
+                self.rx_start_ptp_seconds_lower,
+                self.rx_start_ptp_sub_seconds,
+            ),
         )
-        return ptp_ts
+
+    @rx_start_time.setter
+    def rx_start_time(self, start_time: str) -> None:
+        """
+        Schedule a reception start time
+        :param start_time: time to start at, see datetime_from_str for string format
+        use empty string or None to disable
+        """
+        if start_time:
+            (
+                self.rx_start_ptp_seconds_upper,
+                self.rx_start_ptp_seconds_lower,
+                self.rx_start_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(start_time))
+        self.schedule_control_rx_start_time = bool(start_time)
+
+    @property
+    def rx_stop_time(self) -> IclField[str]:
+        """Read the scheduled reception stop time"""
+        return IclField(
+            description="Receive Stop Time",
+            type_=str,
+            value=time_str_from_registers(
+                self.rx_stop_ptp_seconds_upper,
+                self.rx_stop_ptp_seconds_lower,
+                self.rx_stop_ptp_sub_seconds,
+            ),
+        )
+
+    @rx_stop_time.setter
+    def rx_stop_time(self, stop_time: str) -> None:
+        """
+        Schedule a reception stop time
+        :param stop_time: time to stop at, see datetime_from_str for string format
+        use empty string or None to disable
+        """
+        if stop_time:
+            (
+                self.rx_stop_ptp_seconds_upper,
+                self.rx_stop_ptp_seconds_lower,
+                self.rx_stop_ptp_sub_seconds,
+            ) = split_datetime(datetime_from_str(stop_time))
+        self.schedule_control_rx_stop_time = bool(stop_time)

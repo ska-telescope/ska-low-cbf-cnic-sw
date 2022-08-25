@@ -17,12 +17,13 @@ from rich.text import Text
 from ska_low_cbf_fpga import FpgaPeripheral, FpgaPersonality
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.ptp import Ptp
+from ska_low_cbf_sw_cnic.ptp import TIME_STR_FORMAT, Ptp
 
 TX_STATUS_PARAMS = {
+    "tx_enable": "Enabled",
     "tx_running": "Running",
     "tx_packet_size": "Packet Size",
-    "tx_total_number_tx_packets": "Packets to Send",
+    "tx_packet_to_send": "Packets to Send",
     "tx_packet_count": "Packets Sent",
     "tx_loop_enable": "Loop?",
     "tx_loops": "No. of Loops",
@@ -105,29 +106,19 @@ def generate_ptp_table(ptp: Ptp) -> Table:
     )
     table.add_row("Domain number", f"{hex(ptp.profile_domain_num.value)}")
     table.add_row("MAC address", f"{ptp.mac_address.value}")
-    date_time = datetime.fromtimestamp(int(ptp.time.value))
-    table.add_row("Date", f"{date_time.strftime('%Y-%m-%d')}")
-    table.add_row("Time", f"{date_time.strftime('%H:%M:%S')}")
-    sched_time = datetime.fromtimestamp(ptp.scheduled_time.value)
-    table.add_row(
-        "Scheduled start time", f"{sched_time.strftime('%H:%M:%S.%f')}"
-    )
-    table.add_row("Scheduled start time (UNIX)", f"{sched_time.timestamp()}")
+    table.add_row("PTP Time", f"{ptp.time.value}")
+    host_time = datetime.now()
+    table.add_row("Host Time", f"{host_time.strftime(TIME_STR_FORMAT)}")
+    table.add_row("Transmit start time", f"{ptp.tx_start_time.value}")
+    table.add_row("Transmit stop time", f"{ptp.tx_stop_time.value}")
+    table.add_row("Receive start time", f"{ptp.rx_start_time.value}")
+    table.add_row("Receive stop time", f"{ptp.rx_stop_time.value}")
+    table.add_row("Schedule Complete", f"{ptp.schedule_debug_complete.value}")
     # these are not really useful to end user but maybe for debugging
     # table.add_row("blk1_t1_sec", f"{ptp.blk1_t1_sec.value}")
     # table.add_row("blk1_t2_sec", f"{ptp.blk1_t2_sec.value}")
     # table.add_row("blk1_t3_sec", f"{ptp.blk1_t3_sec.value}")
     # table.add_row("blk1_t4_sec", f"{ptp.blk1_t4_sec.value}")
-    table.add_row(
-        "schedule_ptp_seconds_upper", f"{ptp.schedule_ptp_seconds_upper.value}"
-    )
-    table.add_row(
-        "schedule_ptp_seconds_lower", f"{ptp.schedule_ptp_seconds_lower.value}"
-    )
-    table.add_row(
-        "schedule_ptp_sub_seconds",
-        f"{hex(ptp.schedule_ptp_sub_seconds.value)}",
-    )
     return table
 
 
@@ -168,6 +159,10 @@ def display_status_forever(fpga: FpgaPersonality):
     update_layout(layout, fpga)
     update_static_info(layout)
     with Live(layout, refresh_per_second=1, screen=True):
-        while True:
-            time.sleep(1)
-            update_layout(layout, fpga)
+        try:
+            while True:
+                time.sleep(1)
+                update_layout(layout, fpga)
+        except KeyboardInterrupt:
+            # Ctrl-C is how the user exits, no need to print a traceback
+            pass
