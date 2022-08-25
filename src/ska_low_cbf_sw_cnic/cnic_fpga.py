@@ -122,6 +122,7 @@ class CnicFpga(FpgaPersonality):
                 self._load_thread = None
         return False
 
+    @property
     def ready_to_transmit(self) -> IclField[bool]:
         """Can we transmit? i.e. Is our PCAP file loaded?"""
         value = False
@@ -179,7 +180,7 @@ class CnicFpga(FpgaPersonality):
         self.prepare_transmit(
             in_filename, n_loops, burst_size, burst_gap, rate
         )
-        while self._load_thread_active:
+        while not self.ready_to_transmit:
             time.sleep(LOAD_SLEEP_TIME)
         self.begin_transmit(start_time, stop_time)
 
