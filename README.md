@@ -156,9 +156,7 @@ change_port [-h] [--port PORT] [--output OUTPUT] input
 
 ## compare\_pcap
 Find differences between two pcap files, checking only packets with a specified
-destination port.
-
-**Warning** both files are loaded into memory in full.
+destination port. Exits with non-zero status if differences found.
 
 ```console
 compare_pcap [-h] [--packets PACKETS] [--dport DPORT] [--report REPORT] input input
@@ -166,7 +164,7 @@ compare_pcap [-h] [--packets PACKETS] [--dport DPORT] [--report REPORT] input in
 
 ## eth\_interface\_rate
 
-Monitor the transmit & recieve rates on an ethernet interface.
+Monitor the transmit & receive rates on an ethernet interface.
 
 **Warnings**
 * uses the sudo command
