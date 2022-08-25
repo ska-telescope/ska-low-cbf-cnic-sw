@@ -126,7 +126,6 @@ class CnicFpga(FpgaPersonality):
         """Can we transmit? i.e. Is our PCAP file loaded?"""
         value = False
         if self._requested_pcap and not self._load_thread_active:
-            self._load_thread.join()
             value = (
                 self.hbm_pktcontroller.loaded_pcap.value
                 == self._requested_pcap
