@@ -197,7 +197,7 @@ after that has been published somewhere... (or it could perhaps be bundled up
 with the python package?)
 
 # Changelog
-### 0.3.0 (unreleased)
+### 0.3.0
 - Add pcap load/dump methods to HbmPacketController and CnicFpga
 - Use new command-line infrastructure from ska-low-cbf-fpga
 - Add experimental tx/rx commands to cnic command-line interface
@@ -207,6 +207,7 @@ with the python package?)
 - Fix PTP interpretation (IEEE format, not fixed-point binary)
 - Add workaround for some machines crashing with pyxrt buffers >= 2GiB
 - Add status update print statements
+- compare\_pcap bug fix and speed up
 ### 0.2.5
 - Add option to disable PTP
 - Move to SKA repo
