@@ -138,6 +138,7 @@ class Ptp(FpgaPeripheral):
                 address=self["data"].address + offset,
                 description=item,
                 value=self["data"][offset],
+                type_=int,
             )
 
         return super().__getattr__(item)
@@ -163,6 +164,7 @@ class Ptp(FpgaPeripheral):
         return IclField(
             description="Low 3 bytes of MAC address",
             value=(a << 16) | (b << 8) | c,
+            type_=int,
         )
 
     @user_mac_address.setter
@@ -192,6 +194,7 @@ class Ptp(FpgaPeripheral):
                 for _ in range(0, 6, 2)
             ).upper(),
             description="Full MAC address",
+            type_=str,
         )
 
     @property
