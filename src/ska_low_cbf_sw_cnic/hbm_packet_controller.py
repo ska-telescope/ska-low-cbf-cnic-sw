@@ -65,15 +65,8 @@ class HbmPacketController(FpgaPeripheral):
     Class to represent an HbmPacketController FPGA Peripheral
     """
 
-    def __init__(
-        self,
-        interfaces: typing.Union[
-            ArgsFpgaInterface, typing.Dict[str, ArgsFpgaInterface]
-        ],
-        map_field_info: typing.Dict[str, ArgsFieldInfo],
-        default_interface: str = "__default__",
-    ) -> None:
-        super().__init__(interfaces, map_field_info, default_interface)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         # we don't have nice interface to find the actual size of the buffers...
         self._fpga_interface = self._interfaces[self._default_interface]
