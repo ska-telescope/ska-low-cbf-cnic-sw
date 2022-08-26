@@ -19,9 +19,8 @@ import warnings
 
 import dpkt.pcapng
 import numpy as np
-from ska_low_cbf_fpga import ArgsFpgaInterface, FpgaPeripheral, IclField
+from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
-from ska_low_cbf_fpga.args_map import ArgsFieldInfo
 
 from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
 
