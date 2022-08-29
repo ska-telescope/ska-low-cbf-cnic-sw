@@ -14,6 +14,7 @@ HBM Packet Controller ICL (abstraction)
 import bisect
 import math
 import os
+import time
 import typing
 import warnings
 
@@ -331,6 +332,8 @@ class HbmPacketController(FpgaPeripheral):
             if virtual_address >= print_next_dot:
                 print(".", end="", flush=True)
                 print_next_dot += dot_print_increment
+            if n_packets % 1000 == 0:
+                time.sleep(0.0001)
 
         print(
             f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
