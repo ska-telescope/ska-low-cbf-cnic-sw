@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 import typing
+import warnings
 
 from ska_low_cbf_fpga import (
     ArgsFpgaInterface,
@@ -22,6 +23,7 @@ from ska_low_cbf_fpga import (
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
 from ska_low_cbf_sw_cnic.ptp import Ptp
+from ska_low_cbf_sw_cnic.ptp_scheduler import PtpScheduler
 
 RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
 LOAD_SLEEP_TIME = (
@@ -35,7 +37,7 @@ class CnicFpga(FpgaPersonality):
     """
 
     _peripheral_class = {
-        "timeslave": Ptp,
+        "timeslave": PtpScheduler,
         "timeslave_b": Ptp,
         "hbm_pktcontroller": HbmPacketController,
     }
@@ -59,20 +61,16 @@ class CnicFpga(FpgaPersonality):
         :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
         """
         super().__init__(interfaces, map_, logger)
-        print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
-        # TODO add option to select timeslave: A, B, both, neither.
-        #  - should be OK to set up both with MAC
-        #  - can display both...
-        #  - but only one for setting schedules & driving timestamps
-        #    - FPGA has a bit to pick source of timestamps:
-        #      timeslave.ptp_source_select
-        #      (only in timeslave!, not timeslave_b)
-        #    - software should configure sched. in timeslave always.
         self._configure_ptp(self["timeslave"], ptp_domain, 0)
         # We don't always have 2x PTP cores
         if "timeslave_b" in self.peripherals:
             self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
-        self["timeslave"].ptp_source_select = ptp_source_b
+            print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
+            self["timeslave"].ptp_source_select = ptp_source_b
+        else:
+            self["timeslave"].ptp_source_select = 0
+            if ptp_source_b:
+                warnings.warn("No PTP source B available")
 
         self._rx_cancel = threading.Event()
         self._rx_thread = None

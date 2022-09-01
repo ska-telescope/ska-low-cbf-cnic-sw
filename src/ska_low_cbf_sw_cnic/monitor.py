@@ -17,7 +17,7 @@ from rich.text import Text
 from ska_low_cbf_fpga import FpgaPeripheral, FpgaPersonality
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.ptp import TIME_STR_FORMAT, Ptp
+from ska_low_cbf_sw_cnic.ptp_scheduler import TIME_STR_FORMAT, PtpScheduler
 
 TX_STATUS_PARAMS = {
     "tx_enable": "Enabled",
@@ -100,7 +100,7 @@ def generate_100g_table(system: FpgaPeripheral) -> Table:
     return table
 
 
-def generate_ptp_table(ptp: Ptp) -> Table:
+def generate_ptp_table(ptp: PtpScheduler) -> Table:
     table = Table(
         "Parameter", "Value", title="PTP", show_header=False, box=SQUARE
     )

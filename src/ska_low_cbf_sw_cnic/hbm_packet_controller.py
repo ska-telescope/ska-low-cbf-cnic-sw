@@ -23,7 +23,7 @@ import numpy as np
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
 
-from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
+from ska_low_cbf_sw_cnic.ptp_scheduler import TIMESTAMP_BITS, unix_ts_from_ptp
 
 # These sizes are all in Bytes
 IFG_SIZE = 20  # Ethernet Inter-Frame Gap

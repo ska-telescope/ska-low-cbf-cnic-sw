@@ -10,8 +10,8 @@ from decimal import Decimal
 import pytest
 from ska_low_cbf_fpga import ArgsMap, ArgsSimulator
 
-from ska_low_cbf_sw_cnic.ptp import (
-    Ptp,
+from ska_low_cbf_sw_cnic.ptp_scheduler import (
+    PtpScheduler,
     datetime_from_str,
     split_datetime,
     unix_ts_from_ptp,
@@ -22,7 +22,9 @@ from .fpgamap_22081921 import FPGAMAP
 
 @pytest.fixture
 def ptp():
-    return Ptp(ArgsSimulator(fpga_map=FPGAMAP), ArgsMap(FPGAMAP)["timeslave"])
+    return PtpScheduler(
+        ArgsSimulator(fpga_map=FPGAMAP), ArgsMap(FPGAMAP)["timeslave"]
+    )
 
 
 class TestPtp:
