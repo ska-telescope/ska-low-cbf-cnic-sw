@@ -333,6 +333,7 @@ class HbmPacketController(FpgaPeripheral):
                 print(".", end="", flush=True)
                 print_next_dot += dot_print_increment
             if n_packets % 1000 == 0:
+                # brief sleep to give the control system a chance to do things
                 time.sleep(0.0001)
 
         print(
