@@ -14,14 +14,14 @@ HBM Packet Controller ICL (abstraction)
 import bisect
 import math
 import os
+import time
 import typing
 import warnings
 
 import dpkt.pcapng
 import numpy as np
-from ska_low_cbf_fpga import ArgsFpgaInterface, FpgaPeripheral, IclField
+from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
-from ska_low_cbf_fpga.args_map import ArgsFieldInfo
 
 from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
 
@@ -65,15 +65,8 @@ class HbmPacketController(FpgaPeripheral):
     Class to represent an HbmPacketController FPGA Peripheral
     """
 
-    def __init__(
-        self,
-        interfaces: typing.Union[
-            ArgsFpgaInterface, typing.Dict[str, ArgsFpgaInterface]
-        ],
-        map_field_info: typing.Dict[str, ArgsFieldInfo],
-        default_interface: str = "__default__",
-    ) -> None:
-        super().__init__(interfaces, map_field_info, default_interface)
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
 
         # we don't have nice interface to find the actual size of the buffers...
         self._fpga_interface = self._interfaces[self._default_interface]
@@ -339,6 +332,9 @@ class HbmPacketController(FpgaPeripheral):
             if virtual_address >= print_next_dot:
                 print(".", end="", flush=True)
                 print_next_dot += dot_print_increment
+            if n_packets % 1000 == 0:
+                # brief sleep to give the control system a chance to do things
+                time.sleep(0.0001)
 
         print(
             f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
