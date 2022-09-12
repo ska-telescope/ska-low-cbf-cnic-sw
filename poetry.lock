@@ -423,7 +423,7 @@ python-versions = ">=3.7"
 name = "packaging"
 version = "21.3"
 description = "Core utilities for Python packages"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6"
 
@@ -639,7 +639,7 @@ pylint = "*"
 name = "pyparsing"
 version = "3.0.9"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.6.8"
 
@@ -948,7 +948,7 @@ testing = ["func-timeout", "jaraco.itertools", "pytest (>=6)", "pytest-black (>=
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "ce476dff263f9023e82e8945810e26ab149804d7391039bfa80ebe4af1a8aaa5"
+content-hash = "9b983eb6bd784affcf9ff7fd5da3094f0638b2b376cbac539e804201b618d8f0"
 
 [metadata.files]
 ansicon = [
