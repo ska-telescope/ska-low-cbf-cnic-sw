@@ -12,7 +12,6 @@ import logging
 import threading
 import time
 import typing
-import warnings
 
 from ska_low_cbf_fpga import (
     ArgsFpgaInterface,
@@ -22,8 +21,8 @@ from ska_low_cbf_fpga import (
 )
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
+from ska_low_cbf_sw_cnic.pcap import packet_size_from_pcap
 from ska_low_cbf_sw_cnic.ptp import Ptp
-from ska_low_cbf_sw_cnic.ptp_scheduler import PtpScheduler
 
 RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
 LOAD_SLEEP_TIME = (
@@ -37,7 +36,7 @@ class CnicFpga(FpgaPersonality):
     """
 
     _peripheral_class = {
-        "timeslave": PtpScheduler,
+        "timeslave": Ptp,
         "timeslave_b": Ptp,
         "hbm_pktcontroller": HbmPacketController,
     }
@@ -50,7 +49,6 @@ class CnicFpga(FpgaPersonality):
         map_: ArgsMap,
         logger: logging.Logger = None,
         ptp_domain: int = 24,
-        ptp_source_b: bool = False,
     ) -> None:
         """
         Constructor
@@ -58,44 +56,27 @@ class CnicFpga(FpgaPersonality):
         :param map_:  see FpgaPersonality
         :param logger: see FpgaPersonality
         :param ptp_domain: PTP domain number
-        :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
         """
         super().__init__(interfaces, map_, logger)
-        self._configure_ptp(self["timeslave"], ptp_domain, 0)
-        # We don't always have 2x PTP cores
-        if "timeslave_b" in self.peripherals:
-            self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
-            print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
-            self["timeslave"].ptp_source_select = ptp_source_b
-        else:
-            self["timeslave"].ptp_source_select = 0
-            if ptp_source_b:
-                warnings.warn("No PTP source B available")
-
+        self._configure_ptp(ptp_domain)
         self._rx_cancel = threading.Event()
         self._rx_thread = None
         self._load_thread = None
         self._requested_pcap = None
 
-    def _configure_ptp(
-        self, ptp: Ptp, ptp_domain: int, alveo_mac_index: int = 0
-    ) -> None:
-        """
-        Configure a PTP Peripheral
-        :param ptp: Ptp (FpgaPeripheral) object to configure
-        :param alveo_mac_index: which Alveo MAC address to use as basis for PTP MAC
-        :param ptp_domain: PTP domain number
-        """
+    def _configure_ptp(self, ptp_domain: int):
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
-        alveo_mac = alveo_macs[alveo_mac_index]
+        alveo_mac = alveo_macs[0]
         # MAC is str, colon-separated hex bytes "01:02:03:04:05:06"
         self._logger.info(f"Alveo MAC address: {alveo_mac}")
         # take low 3 bytes of mac, convert to int
         alveo_mac_low = int("".join(alveo_mac.split(":")[-3:]), 16)
         # configure the PTP core to use the same low 3 MAC bytes
         # (high bytes are set by the PTP core)
-        ptp.startup(alveo_mac_low, ptp_domain)
-        self._logger.info(f"  PTP MAC address: {ptp.mac_address.value}")
+        self.timeslave.startup(alveo_mac_low, ptp_domain)
+        self._logger.info(
+            f"  PTP MAC address: {self.timeslave.mac_address.value}"
+        )
 
     def prepare_transmit(
         self,
@@ -118,12 +99,12 @@ class CnicFpga(FpgaPersonality):
                 f"Loading {self._requested_pcap} still in progress!"
             )
         self._requested_pcap = in_filename
+        packet_size = packet_size_from_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
-        self.hbm_pktcontroller.tx_reset = True
         self.timeslave.schedule_control_reset = 1
         self.hbm_pktcontroller.configure_tx(
-            n_loops, burst_size, burst_gap, rate
+            packet_size, n_loops, burst_size, burst_gap, rate
         )
 
         if self.hbm_pktcontroller.loaded_pcap.value != self._requested_pcap:
@@ -167,12 +148,6 @@ class CnicFpga(FpgaPersonality):
         (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at
         """
-        if not self.ready_to_transmit:
-            raise RuntimeError(
-                "Not ready to transmit, still loading PCAP to HBM"
-            )
-
-        self.hbm_pktcontroller.tx_reset = False
         print(f"Scheduling Tx stop time: {stop_time}")
         self.timeslave.tx_stop_time = stop_time
         print(f"Scheduling Tx start time: {start_time}")

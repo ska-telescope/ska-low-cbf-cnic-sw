@@ -23,6 +23,7 @@ import numpy as np
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
 
+from ska_low_cbf_sw_cnic.pcap import get_reader, get_writer
 from ska_low_cbf_sw_cnic.ptp_scheduler import TIMESTAMP_BITS, unix_ts_from_ptp
 
 # These sizes are all in Bytes
@@ -166,11 +167,7 @@ class HbmPacketController(FpgaPeripheral):
         :param timestamped: does the data in HBM contain timestamps?
         (Rx data will have timestamps, but data loaded for Tx will not)
         """
-        if os.path.splitext(out_file.name)[1] == ".pcapng":
-            writer = dpkt.pcapng.Writer(out_file)
-        else:
-            writer = dpkt.pcap.Writer(out_file, nano=True)
-
+        writer = get_writer(out_file)
         padded_packet_size = _get_padded_size(packet_size)
         data_chunk_size = (
             padded_packet_size  # we need to process this much at a time
@@ -261,10 +258,13 @@ class HbmPacketController(FpgaPeripheral):
         print("Finished writing\n")
         total_bytes = n_packets * packet_size
         if timestamped:
-            duration = float(timestamp - first_ts)
-            data_rate_gbps = (8 * total_bytes / duration) / 1e9
-            print(f"Capture duration {duration:.9f} s")
-            print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+            try:
+                duration = float(timestamp - first_ts)
+                data_rate_gbps = (8 * total_bytes / duration) / 1e9
+                print(f"Capture duration {duration:.9f} s")
+                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+            except NameError:
+                self._logger.error("Couldn't calculate duration of capture")
         print(
             (
                 f"Wrote {n_packets} packets, "
@@ -300,12 +300,7 @@ class HbmPacketController(FpgaPeripheral):
         Load a PCAP(NG) file from disk to FPGA
         :param in_file: input PCAP(NG) file
         """
-        # TODO is there a better way to detect the file format?
-        if os.path.splitext(in_file.name)[1] == ".pcapng":
-            reader = dpkt.pcapng.Reader
-        else:
-            reader = dpkt.pcap.Reader
-
+        reader = get_reader(in_file)
         first_packet = True
         virtual_address = 0  # byte address to write to
         packet_padded_size = 0
@@ -313,11 +308,13 @@ class HbmPacketController(FpgaPeripheral):
         print_next_dot = 0
         n_packets = 0
         packet_size = 0
-        for timestamp, packet in reader(in_file):
+        for timestamp, packet in reader:
             # assess first packet,
             # firmware assumes all packets are same size
             if first_packet:
                 packet_size = len(packet)
+                if packet_size != self.tx_packet_size:
+                    self.logger.error("Packet size mismatch!")
                 packet_padded_size = _get_padded_size(packet_size)
                 first_packet = False
                 padded_packet = np.zeros(packet_padded_size, dtype=np.uint8)
@@ -348,6 +345,7 @@ class HbmPacketController(FpgaPeripheral):
 
     def configure_tx(
         self,
+        packet_size: int,
         n_loops: int = 1,
         burst_size: int = 1,
         burst_gap: typing.Union[int, None] = None,
@@ -361,6 +359,7 @@ class HbmPacketController(FpgaPeripheral):
         :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         """
         print("Configuring Tx params")
+        self.tx_packet_size = packet_size
 
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
@@ -368,9 +367,7 @@ class HbmPacketController(FpgaPeripheral):
         if burst_gap:
             self.tx_burst_gap = burst_gap
         else:
-            self.tx_burst_gap = _gap_from_rate(
-                self.tx_packet_size, rate, burst_size
-            )
+            self.tx_burst_gap = _gap_from_rate(packet_size, rate, burst_size)
             print(
                 (
                     f"{rate} Gbps with {self.tx_packet_size.value} B packets "
