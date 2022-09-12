@@ -13,6 +13,8 @@ import threading
 import time
 import typing
 
+from packaging import version
+from packaging.specifiers import SpecifierSet
 from ska_low_cbf_fpga import (
     ArgsFpgaInterface,
     ArgsMap,
@@ -61,6 +63,10 @@ class CnicFpga(FpgaPersonality):
         :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
         """
         super().__init__(interfaces, map_, logger)
+
+        # check FW version (earlier versions lack some registers we use)
+        self._check_fw("CNIC", "~=0.1.2")
+
         self._configure_ptp(self["timeslave"], ptp_domain, 0)
         # We don't always have 2x PTP cores
         if "timeslave_b" in self.peripherals:
@@ -76,6 +82,58 @@ class CnicFpga(FpgaPersonality):
         self._rx_thread = None
         self._load_thread = None
         self._requested_pcap = None
+
+    def _check_fw(self, personality: str, version_spec: str) -> None:
+        """
+        Check the FPGA firmware is the right personality & version.
+        :param personality: 4-character personality code
+        :param version_spec: version specification string (e.g. "~=1.2.3")
+        See PEP 440 for details.
+        (~= means major must match, minor/patch must be >= specified)
+        :raises: RuntimeError if requirements not met
+        """
+        # TODO - move this to ska-low-cbf-fpga
+        actual_personality = bytes(
+            self.system.firmware_personality.value
+        ).decode(encoding="ascii")
+        if actual_personality != personality:
+            int_required = int.from_bytes(
+                personality.encode(encoding="ascii"), "big"
+            )
+            raise RuntimeError(
+                "Wrong firmware personality: "
+                f"{actual_personality} (0x{self.system.firmware_personality.value:x})"
+                ". Expected: "
+                f"{personality} (0x{int_required:x})."
+            )
+
+        spec = SpecifierSet(version_spec)
+        if not spec.contains(version.parse(self.fw_version.value)):
+            raise RuntimeError(
+                f"Wrong firmware version: {self.fw_version.value}."
+                f"Expected: {version_spec}"
+            )
+
+    @property
+    def fw_version(self) -> IclField[str]:
+        """
+        Get the FPGA Firmware Version:
+        major.minor.patch
+        """
+        # TODO move to ska-low-cbf-fpga !
+        fw_ver = (
+            f"{self.system.firmware_major_version.value}."
+            f"{self.system.firmware_minor_version.value}."
+            f"{self.system.firmware_patch_version.value}"
+        )
+        return IclField(
+            description="Firmware Version",
+            format="%s",
+            type_=str,
+            value=fw_ver,
+            user_error=False,
+            user_write=False,
+        )
 
     def _configure_ptp(
         self, ptp: Ptp, ptp_domain: int, alveo_mac_index: int = 0
@@ -224,13 +282,7 @@ class CnicFpga(FpgaPersonality):
         :param stop_time: optional time to end reception at
         """
         self.timeslave.schedule_control_reset = 1
-        # cancel any existing Rx wait thread
-        if self._rx_thread:
-            self._rx_cancel.set()
-            self._rx_thread.join()
-            self._rx_cancel.clear()
-            if self._rx_thread.is_alive():
-                raise RuntimeError("Previous Rx thread didn't stop")
+        self._end_rx_thread()  # cancel any existing Rx wait thread
 
         print(f"Scheduling Rx stop time: {stop_time}")
         self.timeslave.rx_stop_time = stop_time
@@ -241,13 +293,33 @@ class CnicFpga(FpgaPersonality):
         print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
 
-        # start a thread to wait for completion
         print("Starting thread to wait for completion")
+        self._begin_rx_thread(out_filename, packet_size)
+
+    def _begin_rx_thread(self, out_filename, packet_size):
+        """Start a thread to wait for receive completion"""
+        self._rx_cancel.clear()
         self._rx_thread = threading.Thread(
             target=self._dump_pcap_when_complete,
             args=(out_filename, packet_size),
         )
         self._rx_thread.start()
+
+    def _end_rx_thread(self) -> None:
+        """Close down our last Rx thread"""
+        self.stop_receive()
+        if self._rx_thread:
+            self._rx_thread.join()
+            if self._rx_thread.is_alive():
+                raise RuntimeError("Previous Rx thread didn't stop")
+
+    def stop_receive(self) -> None:
+        """
+        Abort a 'receive_pcap' that's still waiting.
+        (e.g. if we set the wrong number of packets to wait for it may never finish)
+        """
+        if self._rx_thread:
+            self._rx_cancel.set()
 
     def _dump_pcap_when_complete(
         self,
