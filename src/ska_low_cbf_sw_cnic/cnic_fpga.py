@@ -76,19 +76,25 @@ class CnicFpga(FpgaPersonality):
         self._load_thread = None
         self._requested_pcap = None
 
-    def _configure_ptp(self, ptp_domain: int):
+    def _configure_ptp(
+        self, ptp: Ptp, ptp_domain: int, alveo_mac_index: int = 0
+    ) -> None:
+        """
+        Configure a PTP Peripheral
+        :param ptp: Ptp (FpgaPeripheral) object to configure
+        :param alveo_mac_index: which Alveo MAC address to use as basis for PTP MAC
+        :param ptp_domain: PTP domain number
+        """
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
-        alveo_mac = alveo_macs[0]
+        alveo_mac = alveo_macs[alveo_mac_index]
         # MAC is str, colon-separated hex bytes "01:02:03:04:05:06"
         self._logger.info(f"Alveo MAC address: {alveo_mac}")
         # take low 3 bytes of mac, convert to int
         alveo_mac_low = int("".join(alveo_mac.split(":")[-3:]), 16)
         # configure the PTP core to use the same low 3 MAC bytes
         # (high bytes are set by the PTP core)
-        self.timeslave.startup(alveo_mac_low, ptp_domain)
-        self._logger.info(
-            f"  PTP MAC address: {self.timeslave.mac_address.value}"
-        )
+        ptp.startup(alveo_mac_low, ptp_domain)
+        self._logger.info(f"  PTP MAC address: {ptp.mac_address.value}")
 
     def prepare_transmit(
         self,
