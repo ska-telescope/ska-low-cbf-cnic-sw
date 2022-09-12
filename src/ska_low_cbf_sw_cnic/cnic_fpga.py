@@ -22,7 +22,7 @@ from ska_low_cbf_fpga import (
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
 from ska_low_cbf_sw_cnic.pcap import packet_size_from_pcap
-from ska_low_cbf_sw_cnic.ptp import Ptp
+from ska_low_cbf_sw_cnic.ptp import Ptp, PtpScheduler
 
 RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
 LOAD_SLEEP_TIME = (
@@ -36,7 +36,7 @@ class CnicFpga(FpgaPersonality):
     """
 
     _peripheral_class = {
-        "timeslave": Ptp,
+        "timeslave": PtpScheduler,
         "timeslave_b": Ptp,
         "hbm_pktcontroller": HbmPacketController,
     }
