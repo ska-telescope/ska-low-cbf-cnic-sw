@@ -49,6 +49,7 @@ class CnicFpga(FpgaPersonality):
         map_: ArgsMap,
         logger: logging.Logger = None,
         ptp_domain: int = 24,
+        ptp_source_b: bool = False,
     ) -> None:
         """
         Constructor
@@ -56,9 +57,20 @@ class CnicFpga(FpgaPersonality):
         :param map_:  see FpgaPersonality
         :param logger: see FpgaPersonality
         :param ptp_domain: PTP domain number
+        :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
         """
         super().__init__(interfaces, map_, logger)
-        self._configure_ptp(ptp_domain)
+        self._configure_ptp(self["timeslave"], ptp_domain, 0)
+        # We don't always have 2x PTP cores
+        if "timeslave_b" in self.peripherals:
+            self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
+            print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
+            self["timeslave"].ptp_source_select = ptp_source_b
+        else:
+            self["timeslave"].ptp_source_select = 0
+            if ptp_source_b:
+                self._logger.warning("No PTP source B available")
+
         self._rx_cancel = threading.Event()
         self._rx_thread = None
         self._load_thread = None
