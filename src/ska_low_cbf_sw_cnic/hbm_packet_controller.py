@@ -337,7 +337,6 @@ class HbmPacketController(FpgaPeripheral):
             f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
         )
         self.tx_packet_to_send = n_packets
-        self.tx_packet_size = packet_size
         self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
         self.tx_axi_transactions = math.ceil(
             (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE

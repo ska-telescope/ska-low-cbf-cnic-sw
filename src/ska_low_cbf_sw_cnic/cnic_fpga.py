@@ -121,6 +121,7 @@ class CnicFpga(FpgaPersonality):
         packet_size = packet_size_from_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
+        self.hbm_pktcontroller.tx_reset = True
         self.timeslave.schedule_control_reset = 1
         self.hbm_pktcontroller.configure_tx(
             packet_size, n_loops, burst_size, burst_gap, rate
@@ -167,6 +168,7 @@ class CnicFpga(FpgaPersonality):
         (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at
         """
+        self.hbm_pktcontroller.tx_reset = False
         print(f"Scheduling Tx stop time: {stop_time}")
         self.timeslave.tx_stop_time = stop_time
         print(f"Scheduling Tx start time: {start_time}")
