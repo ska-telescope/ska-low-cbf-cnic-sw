@@ -13,12 +13,10 @@ HBM Packet Controller ICL (abstraction)
 
 import bisect
 import math
-import os
 import time
 import typing
 import warnings
 
-import dpkt.pcapng
 import numpy as np
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
