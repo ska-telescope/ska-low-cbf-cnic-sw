@@ -297,6 +297,7 @@ class HbmPacketController(FpgaPeripheral):
         """
         Load a PCAP(NG) file from disk to FPGA
         :param in_file: input PCAP(NG) file
+        :raises RuntimeError: if FPGA settings don't match PCAP file
         """
         reader = get_reader(in_file)
         first_packet = True
@@ -312,7 +313,11 @@ class HbmPacketController(FpgaPeripheral):
             if first_packet:
                 packet_size = len(packet)
                 if packet_size != self.tx_packet_size:
-                    self.logger.error("Packet size mismatch!")
+                    raise RuntimeError(
+                        "Packet size mismatch! Configured in FPGA: "
+                        f"{self.tx_packet_size.value}."
+                        f"PCAP file contains: {packet_size}."
+                    )
                 packet_padded_size = _get_padded_size(packet_size)
                 first_packet = False
                 padded_packet = np.zeros(packet_padded_size, dtype=np.uint8)
