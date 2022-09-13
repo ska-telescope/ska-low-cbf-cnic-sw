@@ -146,6 +146,15 @@ class Ptp(FpgaPeripheral):
         :param domain: PTP domain
         :param mac_address: MAC address, only the low 3 bytes are used.
         """
+        if (
+            self.profile_domain_num == domain
+            and self.user_mac_address == mac_address
+        ):
+            self._logger.debug(
+                "PTP already configured, will not reload profile"
+            )
+            return
+
         self.profile_domain_num = domain
         self.user_mac_address = mac_address
         self.command(PtpCommand.RELOAD_PROFILE)
