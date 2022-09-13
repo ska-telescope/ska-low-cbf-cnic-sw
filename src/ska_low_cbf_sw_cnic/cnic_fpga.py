@@ -23,7 +23,10 @@ from ska_low_cbf_fpga import (
 )
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.pcap import packet_size_from_pcap
+from ska_low_cbf_sw_cnic.pcap import (
+    count_packets_in_pcap,
+    packet_size_from_pcap,
+)
 from ska_low_cbf_sw_cnic.ptp import Ptp
 from ska_low_cbf_sw_cnic.ptp_scheduler import PtpScheduler
 
@@ -63,7 +66,6 @@ class CnicFpga(FpgaPersonality):
         :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
         """
         super().__init__(interfaces, map_, logger)
-
         # check FW version (earlier versions lack some registers we use)
         self._check_fw("CNIC", "~=0.1.2")
 
@@ -93,8 +95,8 @@ class CnicFpga(FpgaPersonality):
         :raises: RuntimeError if requirements not met
         """
         # TODO - move this to ska-low-cbf-fpga
-        actual_personality = bytes(
-            self.system.firmware_personality.value
+        actual_personality = int.to_bytes(
+            self.system.firmware_personality.value, 4, "big"
         ).decode(encoding="ascii")
         if actual_personality != personality:
             int_required = int.from_bytes(
@@ -111,7 +113,7 @@ class CnicFpga(FpgaPersonality):
         if not spec.contains(version.parse(self.fw_version.value)):
             raise RuntimeError(
                 f"Wrong firmware version: {self.fw_version.value}."
-                f"Expected: {version_spec}"
+                f" Expected: {version_spec}"
             )
 
     @property
@@ -177,12 +179,13 @@ class CnicFpga(FpgaPersonality):
             )
         self._requested_pcap = in_filename
         packet_size = packet_size_from_pcap(in_filename)
+        n_packets = count_packets_in_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
         self.hbm_pktcontroller.tx_reset = True
         self.timeslave.schedule_control_reset = 1
         self.hbm_pktcontroller.configure_tx(
-            packet_size, n_loops, burst_size, burst_gap, rate
+            packet_size, n_packets, n_loops, burst_size, burst_gap, rate
         )
 
         if self.hbm_pktcontroller.loaded_pcap.value != self._requested_pcap:

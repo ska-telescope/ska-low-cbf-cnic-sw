@@ -339,15 +339,11 @@ class HbmPacketController(FpgaPeripheral):
         print(
             f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
         )
-        self.tx_packet_to_send = n_packets
-        self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
-        self.tx_axi_transactions = math.ceil(
-            (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
-        )
 
     def configure_tx(
         self,
         packet_size: int,
+        n_packets: int,
         n_loops: int = 1,
         burst_size: int = 1,
         burst_gap: typing.Union[int, None] = None,
@@ -355,14 +351,14 @@ class HbmPacketController(FpgaPeripheral):
     ) -> None:
         """
         Configure packet transmission parameters
+        :param packet_size: packet size (Bytes), all packets assumed same size
+        :param n_packets: number of packets to send
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
         :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
         """
         print("Configuring Tx params")
-        self.tx_packet_size = packet_size
-
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
@@ -372,24 +368,31 @@ class HbmPacketController(FpgaPeripheral):
             self.tx_burst_gap = _gap_from_rate(packet_size, rate, burst_size)
             print(
                 (
-                    f"{rate} Gbps with {self.tx_packet_size.value} B packets "
+                    f"{rate} Gbps with {packet_size} B packets "
                     f"in bursts of {burst_size} "
                     f"gives a burst period of {self.tx_burst_gap.value} ns"
                 )
             )
-        self.tx_packets_per_burst = burst_size
-        self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
-        self.tx_bursts = math.ceil(self.tx_packet_to_send / burst_size)
 
-        if n_loops > 1:
-            self.tx_loop_enable = True
-            self.tx_loops = n_loops
+        self.tx_packet_size = packet_size
+        self.tx_packet_to_send = n_packets
+        self.tx_packets_per_burst = burst_size
+        self.tx_bursts = math.ceil(n_packets / burst_size)
+        packet_padded_size = _get_padded_size(packet_size)
+        self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
+        self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
+        self.tx_axi_transactions = math.ceil(
+            (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
+        )
+
+        self.tx_loop_enable = n_loops > 1
+        self.tx_loops = max(n_loops - 1, 0)  # FPGA loops tx_loops+1 times
 
     def start_tx(self) -> None:
         """
         Start transmitting packets
         """
-        # if _loaded_pcap was stored in the FPGA, we could do someting like:
+        # if _loaded_pcap was stored in the FPGA, we could do something like:
         #   if not _loaded_pcap:
         #       raise RuntimeError("No PCAP loaded")
         # but since it's only in software, we will defer to the user's judgement
