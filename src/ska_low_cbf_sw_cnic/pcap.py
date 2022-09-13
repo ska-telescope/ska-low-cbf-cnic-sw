@@ -8,6 +8,7 @@
 PCAP Processing Helper Functions
 """
 import os
+import time
 import typing
 
 import dpkt
@@ -17,12 +18,7 @@ def get_reader(
     file: typing.BinaryIO,
 ) -> typing.Union[dpkt.pcap.Reader, dpkt.pcapng.Reader]:
     """Create a reader for a PCAP(NG) file"""
-    # TODO is there a better way to detect the file format?
-    if os.path.splitext(file.name)[1] == ".pcapng":
-        reader = dpkt.pcapng.Reader
-    else:
-        reader = dpkt.pcap.Reader
-    return reader(file)
+    return dpkt.pcap.UniversalReader(file)
 
 
 def get_writer(
@@ -49,3 +45,16 @@ def packet_size_from_pcap(in_filename: str) -> int:
             # assess first packet,
             # assume all packets are same size
             return len(packet)
+
+
+def count_packets_in_pcap(in_filename: str) -> int:
+    """
+    Count the total number of packets from a given PCAP(NG) file.
+    """
+    with open(in_filename, "rb") as in_file:
+        reader = get_reader(in_file)
+        for n, (timestamp, packet) in enumerate(reader):
+            if n % 1000 == 0:
+                # brief sleep to give the control system a chance to do things
+                time.sleep(0.0001)
+        return n + 1
