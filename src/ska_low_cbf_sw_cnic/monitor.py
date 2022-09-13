@@ -160,6 +160,12 @@ def update_static_info(layout: Layout, fpga: FpgaPersonality):
     heading = Text("CNIC Monitor", justify="center")
     heading.stylize("bold cyan")
     layout["head"].update(heading)
+    footer = Text(f"Device: {fpga.info['bdf']}")
+    if fpga.hbm_pktcontroller.loaded_pcap.value:
+        footer += Text(
+            f"\tTx File: {fpga.hbm_pktcontroller.loaded_pcap.value}"
+        )
+    layout["foot"].update(footer)
 
 
 def display_status_forever(fpga: FpgaPersonality):
