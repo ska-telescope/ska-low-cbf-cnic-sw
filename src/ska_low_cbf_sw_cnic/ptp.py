@@ -9,6 +9,7 @@ PTP Peripheral ICL
 """
 from enum import IntEnum
 
+import numpy as np
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 
 
@@ -68,14 +69,30 @@ class Ptp(FpgaPeripheral):
     }
     """key: name, value: offset"""
 
+    _signed_cfg_properties = {
+        "blk1_last_delta",
+        "blk1_t1_sec",
+        "blk1_t1_nano",
+        "blk1_t2_sec",
+        "blk1_t2_nano",
+        "blk1_t3_sec",
+        "blk1_t3_nano",
+        "blk1_t4_sec",
+        "blk1_t4_nano",
+    }
+    """names of cfg_properties that should be interpreted as signed"""
+
     def __getattr__(self, item) -> IclField:
         """Get config param from ram buffer"""
         if item in self._cfg_properties:
             offset = self._cfg_properties[item]
+            value = self["data"][offset]
+            if item in self._signed_cfg_properties:
+                value = np.int32(value)
             return IclField(
                 address=self["data"].address + offset,
                 description=item,
-                value=self["data"][offset],
+                value=value,
                 type_=int,
             )
 
