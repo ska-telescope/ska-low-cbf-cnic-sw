@@ -73,7 +73,8 @@ class CnicFpga(FpgaPersonality):
 
         self._configure_ptp(self["timeslave"], ptp_domain, 0)
         # We don't always have 2x PTP cores
-        if "timeslave_b" in self.peripherals:
+        ethernet_ports = len(self.info["platform"]["macs"]) // 4
+        if ethernet_ports > 1:
             self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
             print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
             self["timeslave"].ptp_source_select = ptp_source_b
