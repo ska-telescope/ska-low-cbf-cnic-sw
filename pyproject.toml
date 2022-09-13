@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ska_low_cbf_sw_cnic"
-version = "0.3.0"
+version = "0.3.2"
 description = "CNIC Control Software"
 authors = ["Andrew Bolin, Jason van Aardt, CSIRO"]
 license = "CSIRO Open Source Software Licence"
