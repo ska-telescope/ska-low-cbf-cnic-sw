@@ -21,6 +21,7 @@ from ska_low_cbf_fpga import (
     FpgaPersonality,
     IclField,
 )
+from ska_low_cbf_fpga.args_fpga import WORD_SIZE
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
 from ska_low_cbf_sw_cnic.pcap import (
@@ -95,9 +96,7 @@ class CnicFpga(FpgaPersonality):
         :raises: RuntimeError if requirements not met
         """
         # TODO - move this to ska-low-cbf-fpga
-        actual_personality = int.to_bytes(
-            self.system.firmware_personality.value, 4, "big"
-        ).decode(encoding="ascii")
+        actual_personality = self.fw_personality.value
         if actual_personality != personality:
             int_required = int.from_bytes(
                 personality.encode(encoding="ascii"), "big"
@@ -133,6 +132,24 @@ class CnicFpga(FpgaPersonality):
             format="%s",
             type_=str,
             value=fw_ver,
+            user_error=False,
+            user_write=False,
+        )
+
+    @property
+    def fw_personality(self) -> IclField[str]:
+        """
+        Get the FPGA Firmware personality, decoded to a string
+        """
+        # TODO move to ska-low-cbf-fpga !
+        personality = int.to_bytes(
+            self.system.firmware_personality.value, WORD_SIZE, "big"
+        ).decode(encoding="ascii")
+        return IclField(
+            description="Firmware Personality",
+            format="%s",
+            type_=str,
+            value=personality,
             user_error=False,
             user_write=False,
         )
