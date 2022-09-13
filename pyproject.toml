@@ -56,3 +56,13 @@ line-length = 79
 profile = "black"
 src_paths = ["src/ska_low_cbf_sw_cnic", "tests"]
 line_length = 79
+
+[tool.pylint.main]
+ignore-patterns = ["fpgamap.*"]
+
+[tool.pylint."messages control"]
+# for compatibility with the black code formatter
+disable = ["C0330", "C0326"]
+
+[tool.pylint.format]
+max-line-length = 79

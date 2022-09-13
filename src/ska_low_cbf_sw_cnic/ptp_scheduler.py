@@ -2,8 +2,8 @@
 #
 # Copyright (c) 2022 CSIRO Space and Astronomy.
 #
-# Distributed under the terms of the CSIRO Open Source Software Licence Agreement
-# See LICENSE for more info.
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
 """
 PTP Peripheral ICL
 """
@@ -44,7 +44,8 @@ def split_datetime(t: datetime) -> (int, int, int):
     """
     Split a datetime into 3 register values
     :param t: target time to be decoded
-    :return: seconds upper 32 bits, seconds lower 32 bits, sub seconds (nanoseconds)
+    :return: seconds upper 32 bits, seconds lower 32 bits,
+    sub seconds (nanoseconds)
     """
     seconds, fractional_seconds = divmod(t.timestamp(), 1)
     seconds = int(seconds)
@@ -73,7 +74,7 @@ def unix_ts_from_ptp(ptp_timestamp: int) -> Decimal:
 
 class PtpScheduler(Ptp):
     """
-    PTP with Scheduling
+    ICL for PTP with Scheduling
     """
 
     @property
@@ -125,8 +126,8 @@ class PtpScheduler(Ptp):
     def tx_start_time(self, start_time: str) -> None:
         """
         Schedule a transmission start time
-        :param start_time: time to start at, see datetime_from_str for string format
-        use empty string or None to disable
+        :param start_time: time to start at, see datetime_from_str for string
+        format. Use empty string or None to disable
         """
         if start_time:
             (
@@ -153,8 +154,8 @@ class PtpScheduler(Ptp):
     def tx_stop_time(self, stop_time: str) -> None:
         """
         Schedule a transmission stop time
-        :param stop_time: time to stop at, see datetime_from_str for string format
-        use empty string or None to disable
+        :param stop_time: time to stop at, see datetime_from_str for string
+        format. Use empty string or None to disable
         """
         if stop_time:
             (
@@ -181,8 +182,8 @@ class PtpScheduler(Ptp):
     def rx_start_time(self, start_time: str) -> None:
         """
         Schedule a reception start time
-        :param start_time: time to start at, see datetime_from_str for string format
-        use empty string or None to disable
+        :param start_time: time to start at, see datetime_from_str for string
+        format. Use empty string or None to disable
         """
         if start_time:
             (
@@ -209,8 +210,8 @@ class PtpScheduler(Ptp):
     def rx_stop_time(self, stop_time: str) -> None:
         """
         Schedule a reception stop time
-        :param stop_time: time to stop at, see datetime_from_str for string format
-        use empty string or None to disable
+        :param stop_time: time to stop at, see datetime_from_str for string
+        format. Use empty string or None to disable
         """
         if stop_time:
             (

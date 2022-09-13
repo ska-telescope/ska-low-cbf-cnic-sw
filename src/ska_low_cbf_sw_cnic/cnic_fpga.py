@@ -31,10 +31,10 @@ from ska_low_cbf_sw_cnic.pcap import (
 from ska_low_cbf_sw_cnic.ptp import Ptp
 from ska_low_cbf_sw_cnic.ptp_scheduler import PtpScheduler
 
-RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
-LOAD_SLEEP_TIME = (
-    5  # wait this many seconds between checking if Load is finished
-)
+RX_SLEEP_TIME = 5
+"""wait this many seconds between checking if Rx is finished"""
+LOAD_SLEEP_TIME = 5
+"""wait this many seconds between checking if Load is finished"""
 
 
 class CnicFpga(FpgaPersonality):
@@ -64,7 +64,8 @@ class CnicFpga(FpgaPersonality):
         :param map_:  see FpgaPersonality
         :param logger: see FpgaPersonality
         :param ptp_domain: PTP domain number
-        :param ptp_source_b: Use PTP source B? (Note: only present on some versions)
+        :param ptp_source_b: Use PTP source B?
+        (Note: only present for some firmware versions / FPGA cards)
         """
         super().__init__(interfaces, map_, logger)
         # check FW version (earlier versions lack some registers we use)
@@ -102,10 +103,9 @@ class CnicFpga(FpgaPersonality):
                 personality.encode(encoding="ascii"), "big"
             )
             raise RuntimeError(
-                "Wrong firmware personality: "
-                f"{actual_personality} (0x{self.system.firmware_personality.value:x})"
-                ". Expected: "
-                f"{personality} (0x{int_required:x})."
+                f"Wrong firmware personality: {actual_personality} "
+                f"(0x{self.system.firmware_personality.value:x})"
+                f". Expected: {personality} (0x{int_required:x})."
             )
 
         spec = SpecifierSet(version_spec)
@@ -160,7 +160,8 @@ class CnicFpga(FpgaPersonality):
         """
         Configure a PTP Peripheral
         :param ptp: Ptp (FpgaPeripheral) object to configure
-        :param alveo_mac_index: which Alveo MAC address to use as basis for PTP MAC
+        :param alveo_mac_index: which Alveo MAC address to use as basis for PTP
+        MAC address
         :param ptp_domain: PTP domain number
         """
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
@@ -188,7 +189,8 @@ class CnicFpga(FpgaPersonality):
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
-        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        :param rate: transmission rate (Gigabits per sec),
+        ignored if burst_gap given
         """
         if self._load_thread_active:
             raise RuntimeError(
@@ -273,7 +275,8 @@ class CnicFpga(FpgaPersonality):
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
-        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        :param rate: transmission rate (Gigabits per sec),
+        ignored if burst_gap given
         :param start_time: optional time to begin transmission at
         (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at

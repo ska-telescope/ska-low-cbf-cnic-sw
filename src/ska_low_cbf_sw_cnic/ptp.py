@@ -2,8 +2,8 @@
 #
 # Copyright (c) 2022 CSIRO Space and Astronomy.
 #
-# Distributed under the terms of the CSIRO Open Source Software Licence Agreement
-# See LICENSE for more info.
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
 """
 PTP Peripheral ICL
 """
@@ -14,6 +14,8 @@ from ska_low_cbf_fpga import FpgaPeripheral, IclField
 
 
 class PtpCommand(IntEnum):
+    """Command codes used by the PTP core"""
+
     RELOAD_PROFILE = 0
     ENABLE = 1
     DISABLE = 2
@@ -112,7 +114,9 @@ class Ptp(FpgaPeripheral):
 
     @property
     def user_mac_address(self) -> IclField[int]:
-        """Get the user-configurable portion of the MAC address (lower 3 bytes)"""
+        """
+        Get the user-configurable portion of the MAC address (lower 3 bytes)
+        """
         a = (self.profile_mac_hi.value & 0xFF000000) >> 24
         b = self.profile_mac_lo.value & 0xFF
         c = (self.profile_mac_lo.value & 0xFF00) >> 8

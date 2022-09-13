@@ -1,9 +1,18 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2022 CSIRO Space and Astronomy.
+#
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
+"""
+PCAP file comparison tool
+"""
 import argparse
-import os
 import sys
-import typing
 
 import dpkt
+
+from ska_low_cbf_sw_cnic.pcap import get_reader
 
 
 def compare_n_packets(
@@ -11,12 +20,14 @@ def compare_n_packets(
 ) -> (list, int):
     """
     Compare a number of packets
-    :param max_packets: maximum number of packets to compare (None => compare all)
+    :param max_packets: maximum number of packets to compare
+    (None => compare all)
     :param packets: original source set of packets
     :param packets_capture: actual captured set of packets
-    :param dport: destination port of interest (filter applied to `packets_capture`)
-    :return: listing of differing packet indices (dport mismatches not counted),
-    int number of packets compared
+    :param dport: destination port of interest
+    (filter applied to `packets_capture`)
+    :return: tuple of: list of differing packet indices
+    (dport mismatches not counted), and int number of packets compared
     :raises StopIteration: if packets_capture runs out before packets
     """
 
@@ -42,16 +53,8 @@ def compare_n_packets(
     return differences, index
 
 
-def create_reader(file: typing.BinaryIO):
-    if os.path.splitext(file.name)[1] == ".pcapng":
-        reader = dpkt.pcapng.Reader
-    else:
-        reader = dpkt.pcap.Reader
-
-    return reader(file)
-
-
 def main():
+    """PCAP comparison utility main function (CLI)"""
     argparser = argparse.ArgumentParser(
         description="Perentie PCAP comparator."
     )
@@ -59,7 +62,7 @@ def main():
         "input",
         type=argparse.FileType("rb"),
         nargs=2,
-        help="Input pcap trace files. Second file (only) is filtered by dport.",
+        help="Input pcap files. Second file (only) is filtered by dport.",
     )
     argparser.add_argument(
         "--packets",
@@ -84,13 +87,14 @@ def main():
     try:
         differences, n_comp = compare_n_packets(
             args.packets,
-            create_reader(args.input[0]),
-            create_reader(args.input[1]),
+            get_reader(args.input[0]),
+            get_reader(args.input[1]),
             args.dport,
         )
     except StopIteration:
         print(
-            f"{args.input[1].name} does not have enough packets to finish comparison"
+            f"{args.input[1].name} "
+            "does not have enough packets to finish comparison"
         )
         sys.exit(2)
 

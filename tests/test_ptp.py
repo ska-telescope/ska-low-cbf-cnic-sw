@@ -22,23 +22,31 @@ from .fpgamap_22081921 import FPGAMAP
 
 @pytest.fixture
 def ptp():
+    """
+    Create a PtpScheduler instance
+    (PtpScheduler is derived from Ptp so this will test Ptp as well)
+    """
     return PtpScheduler(
         ArgsSimulator(fpga_map=FPGAMAP), ArgsMap(FPGAMAP)["timeslave"]
     )
 
 
 class TestPtp:
+    """PTP ICL Tests"""
+
     def test_mac(self, ptp):
         """Check MAC address byte ordering"""
-        TEST_ADDRESS = 0xFE_DC_BA
-        ptp.user_mac_address = TEST_ADDRESS
+        test_address = 0xFE_DC_BA
+        ptp.user_mac_address = test_address
         assert (ptp.profile_mac_hi.value & 0xFF000000) >> 24 == 0xFE
         assert (ptp.profile_mac_lo.value & 0xFF00) >> 8 == 0xBA
         assert (ptp.profile_mac_lo.value & 0xFF) == 0xDC
-        assert ptp.user_mac_address.value == TEST_ADDRESS
+        assert ptp.user_mac_address.value == test_address
 
 
 class TestTimestampConversion:
+    """Test timestamp conversion functions"""
+
     # PTP ts has 32 bits of nanoseconds, top 48 bits are seconds.
     @pytest.mark.parametrize(
         "ptp_ts, unix_ts",
@@ -56,6 +64,7 @@ class TestTimestampConversion:
         assert unix_ts_from_ptp(ptp_ts) == unix_ts
 
     def test_no_lost_precision(self):
+        """Ensure we don't round off our nanoseconds"""
         # 7134939714159251826 => 1661232606.34039845
         # 7134939714159252043 => 1661232606.340398667
         # both these UNIX timestamp values are rounded to 1661232606.3403986
@@ -79,7 +88,10 @@ class TestTimestampConversion:
         ],
     )
     def test_time_control_params(self, ptp, param, string):
-        """Check that the time string goes into the registers and comes out the same"""
+        """
+        Check that the time string goes into the FPGA registers
+        and comes back out the same
+        """
         # ICL interface uses, for example, "tx_start_time"
         icl_attr = param + "_time"
         setattr(ptp, icl_attr, string)

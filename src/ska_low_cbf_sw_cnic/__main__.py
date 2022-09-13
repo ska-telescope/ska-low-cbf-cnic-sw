@@ -76,6 +76,7 @@ class CnicCmdline(FpgaCmdline):
 
     # TODO move command handling to base class?
     def run(self):
+        """Overload run to add extra sub-commands"""
         super().run()
         command = self.args.command
         fpga = self.fpgas[self.args.cards[0]]
@@ -121,6 +122,7 @@ class CnicCmdline(FpgaCmdline):
 
 
 def main():
+    """CNIC CLI main function"""
     CnicCmdline(personality=CnicFpga)
 
 
