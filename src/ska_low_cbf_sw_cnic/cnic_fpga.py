@@ -13,20 +13,28 @@ import threading
 import time
 import typing
 
+from packaging import version
+from packaging.specifiers import SpecifierSet
 from ska_low_cbf_fpga import (
     ArgsFpgaInterface,
     ArgsMap,
     FpgaPersonality,
     IclField,
 )
+from ska_low_cbf_fpga.args_fpga import WORD_SIZE
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.ptp import Ptp
-
-RX_SLEEP_TIME = 5  # wait this many seconds between checking if Rx is finished
-LOAD_SLEEP_TIME = (
-    5  # wait this many seconds between checking if Load is finished
+from ska_low_cbf_sw_cnic.pcap import (
+    count_packets_in_pcap,
+    packet_size_from_pcap,
 )
+from ska_low_cbf_sw_cnic.ptp import Ptp
+from ska_low_cbf_sw_cnic.ptp_scheduler import PtpScheduler
+
+RX_SLEEP_TIME = 5
+"""wait this many seconds between checking if Rx is finished"""
+LOAD_SLEEP_TIME = 5
+"""wait this many seconds between checking if Load is finished"""
 
 
 class CnicFpga(FpgaPersonality):
@@ -35,7 +43,7 @@ class CnicFpga(FpgaPersonality):
     """
 
     _peripheral_class = {
-        "timeslave": Ptp,
+        "timeslave": PtpScheduler,
         "timeslave_b": Ptp,
         "hbm_pktcontroller": HbmPacketController,
     }
@@ -48,6 +56,7 @@ class CnicFpga(FpgaPersonality):
         map_: ArgsMap,
         logger: logging.Logger = None,
         ptp_domain: int = 24,
+        ptp_source_b: bool = False,
     ) -> None:
         """
         Constructor
@@ -55,27 +64,117 @@ class CnicFpga(FpgaPersonality):
         :param map_:  see FpgaPersonality
         :param logger: see FpgaPersonality
         :param ptp_domain: PTP domain number
+        :param ptp_source_b: Use PTP source B?
+        (Note: only present for some firmware versions / FPGA cards)
         """
         super().__init__(interfaces, map_, logger)
-        self._configure_ptp(ptp_domain)
+        # check FW version (earlier versions lack some registers we use)
+        self._check_fw("CNIC", "~=0.1.2")
+
+        self._configure_ptp(self["timeslave"], ptp_domain, 0)
+        # We don't always have 2x PTP cores
+        ethernet_ports = len(self.info["platform"]["macs"]) // 4
+        if ethernet_ports > 1:
+            self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
+            print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
+            self["timeslave"].ptp_source_select = ptp_source_b
+        else:
+            self["timeslave"].ptp_source_select = 0
+            if ptp_source_b:
+                self._logger.warning("No PTP source B available")
+
         self._rx_cancel = threading.Event()
         self._rx_thread = None
         self._load_thread = None
         self._requested_pcap = None
 
-    def _configure_ptp(self, ptp_domain: int):
+    def _check_fw(self, personality: str, version_spec: str) -> None:
+        """
+        Check the FPGA firmware is the right personality & version.
+        :param personality: 4-character personality code
+        :param version_spec: version specification string (e.g. "~=1.2.3")
+        See PEP 440 for details.
+        (~= means major must match, minor/patch must be >= specified)
+        :raises: RuntimeError if requirements not met
+        """
+        # TODO - move this to ska-low-cbf-fpga
+        actual_personality = self.fw_personality.value
+        if actual_personality != personality:
+            int_required = int.from_bytes(
+                personality.encode(encoding="ascii"), "big"
+            )
+            raise RuntimeError(
+                f"Wrong firmware personality: {actual_personality} "
+                f"(0x{self.system.firmware_personality.value:x})"
+                f". Expected: {personality} (0x{int_required:x})."
+            )
+
+        spec = SpecifierSet(version_spec)
+        if not spec.contains(version.parse(self.fw_version.value)):
+            raise RuntimeError(
+                f"Wrong firmware version: {self.fw_version.value}."
+                f" Expected: {version_spec}"
+            )
+
+    @property
+    def fw_version(self) -> IclField[str]:
+        """
+        Get the FPGA Firmware Version:
+        major.minor.patch
+        """
+        # TODO move to ska-low-cbf-fpga !
+        fw_ver = (
+            f"{self.system.firmware_major_version.value}."
+            f"{self.system.firmware_minor_version.value}."
+            f"{self.system.firmware_patch_version.value}"
+        )
+        return IclField(
+            description="Firmware Version",
+            format="%s",
+            type_=str,
+            value=fw_ver,
+            user_error=False,
+            user_write=False,
+        )
+
+    @property
+    def fw_personality(self) -> IclField[str]:
+        """
+        Get the FPGA Firmware personality, decoded to a string
+        """
+        # TODO move to ska-low-cbf-fpga !
+        personality = int.to_bytes(
+            self.system.firmware_personality.value, WORD_SIZE, "big"
+        ).decode(encoding="ascii")
+        return IclField(
+            description="Firmware Personality",
+            format="%s",
+            type_=str,
+            value=personality,
+            user_error=False,
+            user_write=False,
+        )
+
+    def _configure_ptp(
+        self, ptp: Ptp, ptp_domain: int, alveo_mac_index: int = 0
+    ) -> None:
+        """
+        Configure a PTP Peripheral
+        :param ptp: Ptp (FpgaPeripheral) object to configure
+        :param alveo_mac_index: which Alveo MAC address to use as basis for PTP
+        MAC address
+        :param ptp_domain: PTP domain number
+        """
         alveo_macs = [_["address"] for _ in self.info["platform"]["macs"]]
-        alveo_mac = alveo_macs[0]
+        alveo_mac = alveo_macs[alveo_mac_index]
         # MAC is str, colon-separated hex bytes "01:02:03:04:05:06"
         self._logger.info(f"Alveo MAC address: {alveo_mac}")
         # take low 3 bytes of mac, convert to int
         alveo_mac_low = int("".join(alveo_mac.split(":")[-3:]), 16)
         # configure the PTP core to use the same low 3 MAC bytes
         # (high bytes are set by the PTP core)
-        self.timeslave.startup(alveo_mac_low, ptp_domain)
-        self._logger.info(
-            f"  PTP MAC address: {self.timeslave.mac_address.value}"
-        )
+        ptp.startup(alveo_mac_low, ptp_domain)
+        self._logger.info(f"  PTP MAC address: {ptp.mac_address.value}")
 
     def prepare_transmit(
         self,
@@ -91,18 +190,22 @@ class CnicFpga(FpgaPersonality):
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
-        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        :param rate: transmission rate (Gigabits per sec),
+        ignored if burst_gap given
         """
         if self._load_thread_active:
             raise RuntimeError(
                 f"Loading {self._requested_pcap} still in progress!"
             )
         self._requested_pcap = in_filename
+        packet_size = packet_size_from_pcap(in_filename)
+        n_packets = count_packets_in_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
+        self.hbm_pktcontroller.tx_reset = True
         self.timeslave.schedule_control_reset = 1
         self.hbm_pktcontroller.configure_tx(
-            n_loops, burst_size, burst_gap, rate
+            packet_size, n_packets, n_loops, burst_size, burst_gap, rate
         )
 
         if self.hbm_pktcontroller.loaded_pcap.value != self._requested_pcap:
@@ -146,6 +249,7 @@ class CnicFpga(FpgaPersonality):
         (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at
         """
+        self.hbm_pktcontroller.tx_reset = False
         print(f"Scheduling Tx stop time: {stop_time}")
         self.timeslave.tx_stop_time = stop_time
         print(f"Scheduling Tx start time: {start_time}")
@@ -172,7 +276,8 @@ class CnicFpga(FpgaPersonality):
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
-        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        :param rate: transmission rate (Gigabits per sec),
+        ignored if burst_gap given
         :param start_time: optional time to begin transmission at
         (start now if not otherwise specified)
         :param stop_time: optional time to end transmission at
@@ -201,13 +306,7 @@ class CnicFpga(FpgaPersonality):
         :param stop_time: optional time to end reception at
         """
         self.timeslave.schedule_control_reset = 1
-        # cancel any existing Rx wait thread
-        if self._rx_thread:
-            self._rx_cancel.set()
-            self._rx_thread.join()
-            self._rx_cancel.clear()
-            if self._rx_thread.is_alive():
-                raise RuntimeError("Previous Rx thread didn't stop")
+        self._end_rx_thread()  # cancel any existing Rx wait thread
 
         print(f"Scheduling Rx stop time: {stop_time}")
         self.timeslave.rx_stop_time = stop_time
@@ -218,13 +317,33 @@ class CnicFpga(FpgaPersonality):
         print("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
 
-        # start a thread to wait for completion
         print("Starting thread to wait for completion")
+        self._begin_rx_thread(out_filename, packet_size)
+
+    def _begin_rx_thread(self, out_filename, packet_size):
+        """Start a thread to wait for receive completion"""
+        self._rx_cancel.clear()
         self._rx_thread = threading.Thread(
             target=self._dump_pcap_when_complete,
             args=(out_filename, packet_size),
         )
         self._rx_thread.start()
+
+    def _end_rx_thread(self) -> None:
+        """Close down our last Rx thread"""
+        self.stop_receive()
+        if self._rx_thread:
+            self._rx_thread.join()
+            if self._rx_thread.is_alive():
+                raise RuntimeError("Previous Rx thread didn't stop")
+
+    def stop_receive(self) -> None:
+        """
+        Abort a 'receive_pcap' that's still waiting.
+        (e.g. if we set the wrong number of packets to wait for it may never finish)
+        """
+        if self._rx_thread:
+            self._rx_cancel.set()
 
     def _dump_pcap_when_complete(
         self,

@@ -2,8 +2,8 @@
 #
 # (c) 2022 CSIRO Astronomy and Space.
 #
-# Distributed under the terms of the CSIRO Open Source Software Licence Agreement
-# See LICENSE for more info.
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
 """ Monitor CNIC Operation """
 
 import time
@@ -17,7 +17,7 @@ from rich.text import Text
 from ska_low_cbf_fpga import FpgaPeripheral, FpgaPersonality
 
 from ska_low_cbf_sw_cnic.hbm_packet_controller import HbmPacketController
-from ska_low_cbf_sw_cnic.ptp import TIME_STR_FORMAT, Ptp
+from ska_low_cbf_sw_cnic.ptp_scheduler import TIME_STR_FORMAT, PtpScheduler
 
 TX_STATUS_PARAMS = {
     "tx_enable": "Enabled",
@@ -30,11 +30,13 @@ TX_STATUS_PARAMS = {
     "tx_loop_count": "Loop Count",
     "tx_complete": "Complete",
 }
-"""key: attribute to read from hbm_pktcontroller, value: human-readable description"""
+"""key: attribute to read from hbm_pktcontroller,
+value: human-readable description"""
 # TODO add units?
-#  -- it might be better to add the descriptions to the FpgaPeripheral object and read
-#     them from the IcField object..
-#     -- or maybe there are some adequate descriptions in the FPGA map?? [not really]
+#  -- it might be better to add the descriptions to the FpgaPeripheral object
+#     and read them from the IcField object..
+#     -- or maybe there are some adequate descriptions in the FPGA map??
+#     [not really]
 
 RX_STATUS_PARAMS = {
     "rx_enable_capture": "Enabled",
@@ -47,7 +49,8 @@ RX_STATUS_PARAMS = {
     "rx_hbm_3_end_addr": "HBM 3 data bytes",
     "rx_hbm_4_end_addr": "HBM 4 data bytes",
 }
-"""key: attribute to read from hbm_pktcontroller, value: human-readable description"""
+"""key: attribute to read from hbm_pktcontroller,
+value: human-readable description"""
 
 
 def generate_tx_table(hpc: HbmPacketController) -> Table:
@@ -83,6 +86,7 @@ def generate_rx_table(hpc: HbmPacketController) -> Table:
 
 
 def generate_100g_table(system: FpgaPeripheral) -> Table:
+    """Create 100G Ethernet status table."""
     table = Table(
         "Parameter", "Value", title="100G", show_header=False, box=SQUARE
     )
@@ -100,7 +104,8 @@ def generate_100g_table(system: FpgaPeripheral) -> Table:
     return table
 
 
-def generate_ptp_table(ptp: Ptp) -> Table:
+def generate_ptp_table(ptp: PtpScheduler) -> Table:
+    """Create PTP status table."""
     table = Table(
         "Parameter", "Value", title="PTP", show_header=False, box=SQUARE
     )
@@ -123,11 +128,12 @@ def generate_ptp_table(ptp: Ptp) -> Table:
 
 
 def create_layout():
+    """Create a Layout object for the whole monitoring display"""
     layout = Layout()
     layout.split(
         Layout(name="head", size=2),
         Layout(name="body", ratio=1),
-        # Layout(name="foot", size=2),
+        Layout(name="foot", size=2),
     )
     layout["body"].split_row(Layout(name="left"), Layout(name="right"))
     layout["left"].split_column(
@@ -142,22 +148,31 @@ def create_layout():
 
 
 def update_layout(layout: Layout, fpga: FpgaPersonality):
+    """Update all dynamic portions of the display"""
     layout["top_left"].update(generate_tx_table(fpga.hbm_pktcontroller))
     layout["bot_left"].update(generate_rx_table(fpga.hbm_pktcontroller))
     layout["top_right"].update(generate_100g_table(fpga.system))
     layout["bot_right"].update(generate_ptp_table(fpga.timeslave))
 
 
-def update_static_info(layout: Layout):
+def update_static_info(layout: Layout, fpga: FpgaPersonality):
+    """Display the static pieces of information"""
     heading = Text("CNIC Monitor", justify="center")
     heading.stylize("bold cyan")
     layout["head"].update(heading)
+    footer = Text(f"Device: {fpga.info['bdf']}")
+    if fpga.hbm_pktcontroller.loaded_pcap.value:
+        footer += Text(
+            f"\tTx File: {fpga.hbm_pktcontroller.loaded_pcap.value}"
+        )
+    layout["foot"].update(footer)
 
 
 def display_status_forever(fpga: FpgaPersonality):
+    """Display status information until terminated (e.g. by Ctrl-C)"""
     layout = create_layout()
     update_layout(layout, fpga)
-    update_static_info(layout)
+    update_static_info(layout, fpga)
     with Live(layout, refresh_per_second=1, screen=True):
         try:
             while True:

@@ -13,17 +13,16 @@ HBM Packet Controller ICL (abstraction)
 
 import bisect
 import math
-import os
 import time
 import typing
 import warnings
 
-import dpkt.pcapng
 import numpy as np
 from ska_low_cbf_fpga import FpgaPeripheral, IclField
 from ska_low_cbf_fpga.args_fpga import str_from_int_bytes
 
-from ska_low_cbf_sw_cnic.ptp import TIMESTAMP_BITS, unix_ts_from_ptp
+from ska_low_cbf_sw_cnic.pcap import get_reader, get_writer
+from ska_low_cbf_sw_cnic.ptp_scheduler import TIMESTAMP_BITS, unix_ts_from_ptp
 
 # These sizes are all in Bytes
 IFG_SIZE = 20  # Ethernet Inter-Frame Gap
@@ -68,8 +67,8 @@ class HbmPacketController(FpgaPeripheral):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        # we don't have nice interface to find the actual size of the buffers...
-        self._fpga_interface = self._interfaces[self._default_interface]
+        # we don't have nice interface to find the size of the buffers...
+        self._fpga_interface = self._personality.default_interface
         # skip the first buffer (ARGS interchange),
         # get the sizes of all other shared buffers
         hbm_sizes = [
@@ -78,11 +77,13 @@ class HbmPacketController(FpgaPeripheral):
         # convert sizes to a list of virtual end addresses of each buffer
         # e.g. [1000, 1000, 1000] => [1000, 2000, 3000]
         hbm_end_addresses = np.cumsum(hbm_sizes)
-        # insert a zero for the first buffer's start address: [0, 1000, 2000, 3000]
+        # insert a zero for the first buffer's start address:
+        # [0, 1000, 2000, 3000]
         self._buffer_offsets = np.insert(hbm_end_addresses, 0, 0)
         """Virtual addresses of start/end of each HBM buffer
         (Note: n+1 elements, last element is end of last buffer)"""
         self._loaded_pcap = None
+        """Filename of the pcap file loaded to HBM"""
 
     @property
     def tx_packet_count(self) -> IclField[int]:
@@ -166,11 +167,7 @@ class HbmPacketController(FpgaPeripheral):
         :param timestamped: does the data in HBM contain timestamps?
         (Rx data will have timestamps, but data loaded for Tx will not)
         """
-        if os.path.splitext(out_file.name)[1] == ".pcapng":
-            writer = dpkt.pcapng.Writer(out_file)
-        else:
-            writer = dpkt.pcap.Writer(out_file, nano=True)
-
+        writer = get_writer(out_file, packet_size)
         padded_packet_size = _get_padded_size(packet_size)
         data_chunk_size = (
             padded_packet_size  # we need to process this much at a time
@@ -180,7 +177,6 @@ class HbmPacketController(FpgaPeripheral):
             data_chunk_size += padded_timestamp_size
 
         last_partial_packet = None
-        first_packet = True
         n_packets = 0
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
@@ -191,7 +187,8 @@ class HbmPacketController(FpgaPeripheral):
                 flush=True,
             )
             if end == 0:
-                # No data in this buffer, so we have already processed the last packet
+                # No data in this buffer,
+                # so we have already processed the last packet
                 break
 
             # WORKAROUND for weird bug when reading 2GB+ on some machines
@@ -244,9 +241,8 @@ class HbmPacketController(FpgaPeripheral):
                         )
                     )
                     writer.writepkt(packet_data, timestamp)
-                    if first_packet:
+                    if n_packets == 0:
                         first_ts = timestamp
-                        first_packet = False
                 else:
                     writer.writepkt(data[:packet_size].tobytes())
                 n_packets += 1
@@ -261,10 +257,13 @@ class HbmPacketController(FpgaPeripheral):
         print("Finished writing\n")
         total_bytes = n_packets * packet_size
         if timestamped:
-            duration = float(timestamp - first_ts)
-            data_rate_gbps = (8 * total_bytes / duration) / 1e9
-            print(f"Capture duration {duration:.9f} s")
-            print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+            try:
+                duration = float(timestamp - first_ts)
+                data_rate_gbps = (8 * total_bytes / duration) / 1e9
+                print(f"Capture duration {duration:.9f} s")
+                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+            except NameError:
+                self._logger.error("Couldn't calculate duration of capture")
         print(
             (
                 f"Wrote {n_packets} packets, "
@@ -275,6 +274,7 @@ class HbmPacketController(FpgaPeripheral):
 
     @property
     def loaded_pcap(self) -> IclField[str]:
+        """Get our last loaded PCAP file name"""
         return IclField(
             description="Last loaded PCAP file name",
             type_=str,
@@ -299,13 +299,9 @@ class HbmPacketController(FpgaPeripheral):
         """
         Load a PCAP(NG) file from disk to FPGA
         :param in_file: input PCAP(NG) file
+        :raises RuntimeError: if FPGA settings don't match PCAP file
         """
-        # TODO is there a better way to detect the file format?
-        if os.path.splitext(in_file.name)[1] == ".pcapng":
-            reader = dpkt.pcapng.Reader
-        else:
-            reader = dpkt.pcap.Reader
-
+        reader = get_reader(in_file)
         first_packet = True
         virtual_address = 0  # byte address to write to
         packet_padded_size = 0
@@ -313,11 +309,17 @@ class HbmPacketController(FpgaPeripheral):
         print_next_dot = 0
         n_packets = 0
         packet_size = 0
-        for timestamp, packet in reader(in_file):
+        for timestamp, packet in reader:
             # assess first packet,
             # firmware assumes all packets are same size
             if first_packet:
                 packet_size = len(packet)
+                if packet_size != self.tx_packet_size:
+                    raise RuntimeError(
+                        "Packet size mismatch! Configured in FPGA: "
+                        f"{self.tx_packet_size.value}."
+                        f"PCAP file contains: {packet_size}."
+                    )
                 packet_padded_size = _get_padded_size(packet_size)
                 first_packet = False
                 padded_packet = np.zeros(packet_padded_size, dtype=np.uint8)
@@ -337,17 +339,14 @@ class HbmPacketController(FpgaPeripheral):
                 time.sleep(0.0001)
 
         print(
-            f"\nLoaded {n_packets} packets, {str_from_int_bytes(virtual_address)}"
-        )
-        self.tx_packet_to_send = n_packets
-        self.tx_packet_size = packet_size
-        self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
-        self.tx_axi_transactions = math.ceil(
-            (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
+            f"\nLoaded {n_packets} packets, "
+            f"{str_from_int_bytes(virtual_address)}"
         )
 
     def configure_tx(
         self,
+        packet_size: int,
+        n_packets: int,
         n_loops: int = 1,
         burst_size: int = 1,
         burst_gap: typing.Union[int, None] = None,
@@ -355,52 +354,60 @@ class HbmPacketController(FpgaPeripheral):
     ) -> None:
         """
         Configure packet transmission parameters
+        :param packet_size: packet size (Bytes), all packets assumed same size
+        :param n_packets: number of packets to send
         :param n_loops: number of loops
         :param burst_size: packets per burst
         :param burst_gap: packet burst period (ns), overrides rate
-        :param rate: transmission rate (Gigabits per sec), ignored if burst_gap given
+        :param rate: transmission rate (Gigabits per sec),
+        ignored if burst_gap given
         """
         print("Configuring Tx params")
-
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
         if burst_gap:
             self.tx_burst_gap = burst_gap
         else:
-            self.tx_burst_gap = _gap_from_rate(
-                self.tx_packet_size, rate, burst_size
-            )
+            self.tx_burst_gap = _gap_from_rate(packet_size, rate, burst_size)
             print(
                 (
-                    f"{rate} Gbps with {self.tx_packet_size.value} B packets "
+                    f"{rate} Gbps with {packet_size} B packets "
                     f"in bursts of {burst_size} "
                     f"gives a burst period of {self.tx_burst_gap.value} ns"
                 )
             )
-        self.tx_packets_per_burst = burst_size
-        self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
-        self.tx_bursts = math.ceil(self.tx_packet_to_send / burst_size)
 
-        if n_loops > 1:
-            self.tx_loop_enable = True
-            self.tx_loops = n_loops
+        self.tx_packet_size = packet_size
+        self.tx_packet_to_send = n_packets
+        self.tx_packets_per_burst = burst_size
+        self.tx_bursts = math.ceil(n_packets / burst_size)
+        packet_padded_size = _get_padded_size(packet_size)
+        self.tx_beats_per_packet = packet_padded_size // BEAT_SIZE
+        self.tx_beats_per_burst = self.tx_beats_per_packet * burst_size
+        self.tx_axi_transactions = math.ceil(
+            (n_packets * packet_padded_size) / AXI_TRANSACTION_SIZE
+        )
+
+        self.tx_loop_enable = n_loops > 1
+        self.tx_loops = max(n_loops - 1, 0)  # FPGA loops tx_loops+1 times
 
     def start_tx(self) -> None:
         """
         Start transmitting packets
         """
-        # if _loaded_pcap was stored in the FPGA, we could do someting like:
+        # if _loaded_pcap was stored in the FPGA, we could do something like:
         #   if not _loaded_pcap:
         #       raise RuntimeError("No PCAP loaded")
-        # but since it's only in software, we will defer to the user's judgement
+        # since it's only in software, we will defer to the user's judgement
         self.tx_enable = 0
         self.tx_enable = 1
 
     def start_rx(self, packet_size: int, n_packets: int = 0) -> None:
         """
         Start receiving packets into FPGA memory
-        :param packet_size: only packets of this exact size are captured (bytes)
+        :param packet_size: only packets of this exact size are captured
+        (bytes)
         :param n_packets: number of packets to receive
         """
         self.rx_enable_capture = 0

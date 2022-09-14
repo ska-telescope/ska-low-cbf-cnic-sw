@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ska_low_cbf_sw_cnic"
-version = "0.3.1"
+version = "0.3.2"
 description = "CNIC Control Software"
 authors = ["Andrew Bolin, Jason van Aardt, CSIRO"]
 license = "CSIRO Open Source Software Licence"
@@ -8,10 +8,11 @@ packages = [{include = "ska_low_cbf_sw_cnic", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-ska-low-cbf-fpga = "^0.14.5"
+ska-low-cbf-fpga = "^0.14.6"
 dpkt = "^1.9.7"
 scapy = "^2.4.5"
 rich = "^12.0.1"
+packaging = "^21.3"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"  # to match SKA CI pipeline
@@ -54,3 +55,13 @@ line-length = 79
 profile = "black"
 src_paths = ["src/ska_low_cbf_sw_cnic", "tests"]
 line_length = 79
+
+[tool.pylint.main]
+ignore-patterns = ["fpgamap.*"]
+
+[tool.pylint."messages control"]
+# for compatibility with the black code formatter
+disable = ["C0330", "C0326"]
+
+[tool.pylint.format]
+max-line-length = 79

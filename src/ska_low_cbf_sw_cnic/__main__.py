@@ -42,6 +42,11 @@ class CnicCmdline(FpgaCmdline):
             help="PTP domain. Default: 24",
             default=24,
         )
+        cnic_group.add_argument(
+            "--ptp-source-b",
+            action="store_true",
+            help="Use PTP B? (Default: No)",
+        )
 
         # TODO move command handling to base class
         #  (could be automatic by discovering user methods of the Personality?)
@@ -63,12 +68,15 @@ class CnicCmdline(FpgaCmdline):
             ),
         )
 
+    # TODO could some sensible default behaviour be moved upstream?
     def set_personality_args(self):
         """Add CnicFpga personality extra arguments"""
         self.personality_args["ptp_domain"] = self.args.ptp_domain
+        self.personality_args["ptp_source_b"] = self.args.ptp_source_b
 
     # TODO move command handling to base class?
     def run(self):
+        """Overload run to add extra sub-commands"""
         super().run()
         command = self.args.command
         fpga = self.fpgas[self.args.cards[0]]
@@ -114,6 +122,7 @@ class CnicCmdline(FpgaCmdline):
 
 
 def main():
+    """CNIC CLI main function"""
     CnicCmdline(personality=CnicFpga)
 
 

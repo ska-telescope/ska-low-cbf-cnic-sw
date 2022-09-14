@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2022 CSIRO Space and Astronomy.
+#
+# Distributed under the terms of the CSIRO Open Source Software Licence
+# Agreement. See LICENSE for more info.
+"""Interface Rate Monitor"""
 import argparse
 import os
 import time
@@ -5,12 +12,14 @@ from datetime import datetime
 
 
 def screen_clear():
+    """Clear the screen"""
     # for mac and linux(here, os.name is 'posix')
     if os.name == "posix":
         _ = os.system("clear")
 
 
 def main():
+    """Interface rate monitor main function (CLI)"""
     # command line arguments
     parser = argparse.ArgumentParser(description="Interface Rate Monitor")
     parser.add_argument(
