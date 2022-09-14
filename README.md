@@ -197,7 +197,7 @@ after that has been published somewhere... (or it could perhaps be bundled up
 with the python package?)
 
 # Changelog
-## 0.3.2
+### 0.3.2
 - Split PTP ICL into base and scheduling components
 - Add second PTP peripheral (without scheduling part)
 - Interpret some PTP config registers as signed
@@ -209,9 +209,9 @@ concerns
 - Add `stop_receive` method to abort an active capture
 - Refactor pcap-related code into new file pcap.py
 - Various lint score improvements
-## 0.3.1
+### 0.3.1
 - Update to ska-low-cbf-fgpa v0.14.6
-### 0.3.0
+## 0.3.0
 - Add pcap load/dump methods to HbmPacketController and CnicFpga
 - Use new command-line infrastructure from ska-low-cbf-fpga
 - Add experimental tx/rx commands to cnic command-line interface
