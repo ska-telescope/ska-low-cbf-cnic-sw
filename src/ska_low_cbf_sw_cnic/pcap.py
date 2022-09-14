@@ -21,14 +21,31 @@ def get_reader(
     return dpkt.pcap.UniversalReader(file)
 
 
+def _writepkt_patch(self, pkt, ts):
+    """
+    Monkey-patch to convert timestamps to floats before writing.
+    Only needed for pcapng format, its Writer multiplies the timestamp by
+    1e6, which throws a TypeError if passed a Decimal.
+    """
+    self._original_writepkt(pkt, float(ts))
+
+
 def get_writer(
     file: typing.BinaryIO,
+    packet_size: int = 9000,
 ) -> typing.Union[dpkt.pcap.Writer, dpkt.pcapng.Writer]:
-    """Create a writer for a PCAP(NG) file"""
+    """
+    Create a writer for a PCAP(NG) file
+    :param file: file object to write to
+    :param packet_size: packet size (Bytes)
+    """
     if os.path.splitext(file.name)[1] == ".pcapng":
-        writer = dpkt.pcapng.Writer(file)
+        writer = dpkt.pcapng.Writer(file, snaplen=packet_size)
+        # monkey-patch the writer to do a type conversion on the timestamp
+        dpkt.pcapng.Writer._original_writepkt = writer.writepkt
+        dpkt.pcapng.Writer.writepkt = _writepkt_patch
     else:
-        writer = dpkt.pcap.Writer(file, nano=True)
+        writer = dpkt.pcap.Writer(file, snaplen=packet_size, nano=True)
     return writer
 
 
