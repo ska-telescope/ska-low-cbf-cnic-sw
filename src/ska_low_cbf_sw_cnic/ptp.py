@@ -5,7 +5,9 @@
 # Distributed under the terms of the CSIRO Open Source Software Licence
 # Agreement. See LICENSE for more info.
 """
-PTP Peripheral ICL
+PTP (Precision Time Protocol) Peripheral ICL (Instrument Control Layer).
+Abstracts the FPGA registers into a more user-friendly interface, including a
+wrapper for configuration registers inside the IP core.
 """
 from enum import IntEnum
 
@@ -27,7 +29,7 @@ class PtpCommand(IntEnum):
 
 class Ptp(FpgaPeripheral):
     """
-    Base PTP Configuration
+    ICL for Base PTP Peripheral Configuration
     """
 
     _cfg_properties = {

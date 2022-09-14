@@ -5,7 +5,11 @@
 # Distributed under the terms of the CSIRO Open Source Software Licence
 # Agreement. See LICENSE for more info.
 """
-PTP Peripheral ICL
+PTP (Precision Time Protocol) Peripheral ICL (Instrument Control Layer)
+with Scheduling.
+Abstracts the FPGA registers into a more user-friendly interface for reading
+the time and setting transmit/receive start/stop times, and provides utility
+functions for format conversion.
 """
 from datetime import datetime
 from decimal import Decimal
@@ -17,14 +21,19 @@ from ska_low_cbf_sw_cnic.ptp import Ptp
 TIME_STR_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
 TIMESTAMP_BITS = 80
+"""48 bits (integer) seconds, 32 bits of nanoseconds"""
 TIMESTAMP_NS_BITS = 32
-# 48 bits integer, 32 bits of nanoseconds
 
 
 def combine_ptp_registers(
     upper: IclField, lower: IclField, sub: IclField
 ) -> int:
-    """Combine 3x PTP registers into an 80 bit PTP timestamp"""
+    """
+    Combine 3x PTP registers into an 80 bit PTP timestamp
+    :param upper: Upper (most significant) seconds register
+    :param lower: Lower seconds register
+    :param sub: Sub-seconds (nanoseconds) register
+    """
     return (upper.value << 64) | (lower.value << 32) | sub.value
 
 
@@ -35,7 +44,7 @@ def datetime_from_str(time_str: str) -> datetime:
     (microseconds is optional)
     """
     try:
-        return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S.%f")
+        return datetime.strptime(time_str, TIME_STR_FORMAT)
     except ValueError:
         return datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
 
@@ -58,7 +67,12 @@ def split_datetime(t: datetime) -> (int, int, int):
 def time_str_from_registers(
     upper: IclField, lower: IclField, sub: IclField
 ) -> str:
-    """Combine 3 PTP time registers and render as string"""
+    """
+    Combine 3 PTP time registers and render as string
+    :param upper: Upper (most significant) seconds register
+    :param lower: Lower seconds register
+    :param sub: Sub-seconds (nanoseconds) register
+    """
     timestamp = unix_ts_from_ptp(combine_ptp_registers(upper, lower, sub))
     dt = datetime.fromtimestamp(float(timestamp))
     return dt.strftime(TIME_STR_FORMAT)
@@ -81,13 +95,11 @@ class PtpScheduler(Ptp):
     def unix_timestamp(self) -> IclField[int]:
         """Get current time (UNIX ts)"""
         return IclField(
-            value=(
-                unix_ts_from_ptp(
-                    combine_ptp_registers(
-                        self.current_ptp_seconds_upper,
-                        self.current_ptp_seconds_lower,
-                        self.current_ptp_sub_seconds,
-                    )
+            value=unix_ts_from_ptp(
+                combine_ptp_registers(
+                    self.current_ptp_seconds_upper,
+                    self.current_ptp_seconds_lower,
+                    self.current_ptp_sub_seconds,
                 )
             ),
             description="Current UNIX time",
