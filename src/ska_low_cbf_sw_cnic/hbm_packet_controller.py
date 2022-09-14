@@ -167,7 +167,7 @@ class HbmPacketController(FpgaPeripheral):
         :param timestamped: does the data in HBM contain timestamps?
         (Rx data will have timestamps, but data loaded for Tx will not)
         """
-        writer = get_writer(out_file)
+        writer = get_writer(out_file, packet_size)
         padded_packet_size = _get_padded_size(packet_size)
         data_chunk_size = (
             padded_packet_size  # we need to process this much at a time
