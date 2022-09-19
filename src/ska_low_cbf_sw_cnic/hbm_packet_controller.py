@@ -110,6 +110,7 @@ class HbmPacketController(FpgaPeripheral):
         Simple virtual address mapper for writing to multiple HBM buffers.
         :param data: numpy array to write
         :param address: byte-based address
+        :raises IndexError: if data cannot fit at address
         """
         # Note bisect works here because our first buffer to use is memory 1
         # (would need to add an offset if this was not the case)
@@ -118,7 +119,7 @@ class HbmPacketController(FpgaPeripheral):
         start_buffer = bisect.bisect(self._buffer_offsets, address)
         end_buffer = bisect.bisect(self._buffer_offsets, address + len(data))
         if end_buffer >= len(self._buffer_offsets):
-            raise RuntimeError(
+            raise IndexError(
                 f"Cannot fit {len(data)} bytes "
                 f"starting from virtual address {address}. "
                 f"Buffers end at {self._buffer_offsets[-1]}."
@@ -228,7 +229,7 @@ class HbmPacketController(FpgaPeripheral):
                 last_partial_packet = None
 
             raw.shape = (raw.nbytes // data_chunk_size, data_chunk_size)
-            for data in raw:
+            for _, data in enumerate(raw):
                 if timestamped:
                     packet_data = data[:packet_size].tobytes()
                     timestamp = unix_ts_from_ptp(
@@ -328,7 +329,11 @@ class HbmPacketController(FpgaPeripheral):
             #  - and verify the length?
 
             padded_packet[:packet_size] = np.frombuffer(packet, dtype=np.uint8)
-            self._virtual_write(padded_packet, virtual_address)
+            try:
+                self._virtual_write(padded_packet, virtual_address)
+            except IndexError:
+                # stop if we don't have enough memory left for the packet
+                break
             n_packets += 1
             virtual_address += packet_padded_size
             if virtual_address >= print_next_dot:
