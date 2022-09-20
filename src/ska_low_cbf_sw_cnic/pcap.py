@@ -40,11 +40,11 @@ def get_writer(
     :param packet_size: packet size (Bytes)
     """
     if os.path.splitext(file.name)[1] == ".pcapng":
-        writer = dpkt.pcapng.Writer(file, snaplen=packet_size)
         if not hasattr(dpkt.pcapng.Writer, "_original_writepkt"):
             # monkey-patch the writer to do a type conversion on the timestamp
-            dpkt.pcapng.Writer._original_writepkt = writer.writepkt
+            dpkt.pcapng.Writer._original_writepkt = dpkt.pcapng.Writer.writepkt
             dpkt.pcapng.Writer.writepkt = _writepkt_patch
+        writer = dpkt.pcapng.Writer(file, snaplen=packet_size)
     else:
         writer = dpkt.pcap.Writer(file, snaplen=packet_size, nano=True)
     return writer
