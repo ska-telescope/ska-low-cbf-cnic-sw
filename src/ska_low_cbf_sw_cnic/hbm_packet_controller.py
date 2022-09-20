@@ -181,6 +181,7 @@ class HbmPacketController(FpgaPeripheral):
         n_packets = 0
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
+            # skipping buffers for debugging
             if not self._rx_buffer_enabled(buffer):
                 print(f"Skipping buffer {buffer}")
                 continue
@@ -233,7 +234,7 @@ class HbmPacketController(FpgaPeripheral):
                 last_partial_packet = None
 
             raw.shape = (raw.nbytes // data_chunk_size, data_chunk_size)
-            for _, data in enumerate(raw):
+            for data in raw:
                 if timestamped:
                     packet_data = data[:packet_size].tobytes()
                     timestamp = unix_ts_from_ptp(
@@ -433,4 +434,8 @@ class HbmPacketController(FpgaPeripheral):
         :param buffer: Buffer index, starting from 1
         :return: True = buffer in use
         """
+        # check if debug register exists
+        if "rx_bank_enable" not in self._fields:
+            return True
+
         return not bool(self.rx_bank_enable & (1 << (buffer - 1)))
