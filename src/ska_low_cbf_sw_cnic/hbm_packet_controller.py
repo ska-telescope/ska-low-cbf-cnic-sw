@@ -181,6 +181,10 @@ class HbmPacketController(FpgaPeripheral):
         n_packets = 0
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
+            if not self._rx_buffer_enabled(buffer):
+                print(f"Skipping buffer {buffer}")
+                continue
+
             end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
             print(
                 f"Reading {end} B from HBM buffer {buffer} ",
@@ -422,3 +426,11 @@ class HbmPacketController(FpgaPeripheral):
         self.rx_reset_capture = 1
         self.rx_reset_capture = 0
         self.rx_enable_capture = 1
+
+    def _rx_buffer_enabled(self, buffer: int) -> bool:
+        """
+        Check if Rx buffer is enabled
+        :param buffer: Buffer index, starting from 1
+        :return: True = buffer in use
+        """
+        return not bool(self.rx_bank_enable & (1 << (buffer - 1)))
