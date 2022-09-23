@@ -183,8 +183,6 @@ they're not set in stone!
 * Controlling multiple FPGA cards with one instance of the program would be
 viable. Could either use a loop over a list of `CnicFpga` objects or invent some
 FPGA group object to handle it.
-* pcap/pcapng detection is a bit crude, there may be a way to detect based on content
-rather than file extension?
 * There really should be a lot more tests!
   * We might need ArgsSimulator to simulate HBM in order to test without an FPGA
   * Adding tests that exercise a real FPGA may be easier, and a good idea in any case...
@@ -202,6 +200,7 @@ with the python package?)
 - Add Rx buffer disabled logic (for firmware debugging)
 - Fix bugs in pcapng timestamp conversion hack
 - Add some basic tests for `pcap` and `compare_pcap`
+- Fix off-by-one in `compare_pcap` packet limit
 ### 0.3.2
 - Split PTP ICL into base and scheduling components
 - Add second PTP peripheral (without scheduling part)
