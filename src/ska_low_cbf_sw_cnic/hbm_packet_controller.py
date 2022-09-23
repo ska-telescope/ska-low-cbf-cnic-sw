@@ -260,14 +260,19 @@ class HbmPacketController(FpgaPeripheral):
             break
             # end stop at rx_packets_to_capture logic
         # end for each buffer loop
-        print("Finished writing\n")
+        print(f"Finished writing {n_packets} packets\n")
         total_bytes = n_packets * packet_size
         if timestamped:
             try:
                 duration = float(timestamp - first_ts)
-                data_rate_gbps = (8 * total_bytes / duration) / 1e9
                 print(f"Capture duration {duration:.9f} s")
-                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+                # guard against divide by zero
+                # when PTP isn't active it marks all packets at t=0
+                if duration > 0:
+                    data_rate_gbps = (8 * total_bytes / duration) / 1e9
+                    print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+                else:
+                    print("Cannot calculate data rate")
             except NameError:
                 self._logger.error("Couldn't calculate duration of capture")
         print(
@@ -352,6 +357,12 @@ class HbmPacketController(FpgaPeripheral):
             f"\nLoaded {n_packets} packets, "
             f"{str_from_int_bytes(virtual_address)}"
         )
+        if n_packets < self.tx_packet_to_send.value:
+            warnings.warn(
+                f"Expected {self.tx_packet_to_send.value} but only "
+                f"got {n_packets} in file (will use {n_packets})"
+            )
+            self.tx_packet_to_send = n_packets
 
     def configure_tx(
         self,

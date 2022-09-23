@@ -199,7 +199,12 @@ class CnicFpga(FpgaPersonality):
             )
         self._requested_pcap = in_filename
         packet_size = packet_size_from_pcap(in_filename)
-        n_packets = count_packets_in_pcap(in_filename)
+        if self.hbm_pktcontroller.loaded_pcap.value == self._requested_pcap:
+            # if we've already loaded the pacp, use the old count
+            # (it may be less than the number of packets in the file!)
+            n_packets = self.hbm_pktcontroller.tx_packet_to_send.value
+        else:
+            n_packets = count_packets_in_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
         self.hbm_pktcontroller.tx_reset = True
@@ -340,7 +345,8 @@ class CnicFpga(FpgaPersonality):
     def stop_receive(self) -> None:
         """
         Abort a 'receive_pcap' that's still waiting.
-        (e.g. if we set the wrong number of packets to wait for it may never finish)
+        (e.g. if we set the wrong number of packets to wait for it may never
+        finish automatically)
         """
         if self._rx_thread:
             self._rx_cancel.set()
