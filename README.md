@@ -201,6 +201,7 @@ with the python package?)
 - Fix bugs in pcapng timestamp conversion hack
 - Add some basic tests for `pcap` and `compare_pcap`
 - Fix off-by-one in `compare_pcap` packet limit
+- Provide user feedback via logger instead of print
 ### 0.3.2
 - Split PTP ICL into base and scheduling components
 - Add second PTP peripheral (without scheduling part)
