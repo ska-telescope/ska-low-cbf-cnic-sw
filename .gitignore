@@ -1,3 +1,8 @@
+# pcap files
+# (we can allow some small ones for testing...)
+*.pcap
+*.pcapng
+
 # Source: https://github.com/github/gitignore/blob/master/Python.gitignore
 # Used under CC0-1.0 Licence
 

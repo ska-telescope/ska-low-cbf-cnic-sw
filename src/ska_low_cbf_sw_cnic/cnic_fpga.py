@@ -76,7 +76,7 @@ class CnicFpga(FpgaPersonality):
         ethernet_ports = len(self.info["platform"]["macs"]) // 4
         if ethernet_ports > 1:
             self._configure_ptp(self["timeslave_b"], ptp_domain, 1)
-            print(f"PTP Source: {'B' if ptp_source_b else 'A'}")
+            self._logger.info(f"PTP Source: {'B' if ptp_source_b else 'A'}")
             self["timeslave"].ptp_source_select = ptp_source_b
         else:
             self["timeslave"].ptp_source_select = 0
@@ -199,7 +199,13 @@ class CnicFpga(FpgaPersonality):
             )
         self._requested_pcap = in_filename
         packet_size = packet_size_from_pcap(in_filename)
-        n_packets = count_packets_in_pcap(in_filename)
+        if self.hbm_pktcontroller.loaded_pcap.value == self._requested_pcap:
+            # if we've already loaded the pacp, use the old count
+            # (it may be less than the number of packets in the file!)
+            n_packets = self.hbm_pktcontroller.tx_packet_to_send.value
+        else:
+            self._logger.info("Counting packets in file")
+            n_packets = count_packets_in_pcap(in_filename)
 
         self.hbm_pktcontroller.tx_enable = False
         self.hbm_pktcontroller.tx_reset = True
@@ -250,14 +256,14 @@ class CnicFpga(FpgaPersonality):
         :param stop_time: optional time to end transmission at
         """
         self.hbm_pktcontroller.tx_reset = False
-        print(f"Scheduling Tx stop time: {stop_time}")
+        self._logger.info(f"Scheduling Tx stop time: {stop_time}")
         self.timeslave.tx_stop_time = stop_time
-        print(f"Scheduling Tx start time: {start_time}")
+        self._logger.info(f"Scheduling Tx start time: {start_time}")
         self.timeslave.tx_start_time = start_time
         self.timeslave.schedule_control_reset = 0
 
         if not start_time:
-            print("Starting transmission")
+            self._logger.info("Starting transmission")
             self.hbm_pktcontroller.start_tx()
 
     def transmit_pcap(
@@ -308,16 +314,16 @@ class CnicFpga(FpgaPersonality):
         self.timeslave.schedule_control_reset = 1
         self._end_rx_thread()  # cancel any existing Rx wait thread
 
-        print(f"Scheduling Rx stop time: {stop_time}")
+        self._logger.info(f"Scheduling Rx stop time: {stop_time}")
         self.timeslave.rx_stop_time = stop_time
-        print(f"Scheduling Rx start time: {start_time}")
+        self._logger.info(f"Scheduling Rx start time: {start_time}")
         self.timeslave.rx_start_time = start_time
         self.timeslave.schedule_control_reset = 0
 
-        print("Setting receive parameters")
+        self._logger.info("Setting receive parameters")
         self.hbm_pktcontroller.start_rx(packet_size, n_packets)
 
-        print("Starting thread to wait for completion")
+        self._logger.info("Starting thread to wait for completion")
         self._begin_rx_thread(out_filename, packet_size)
 
     def _begin_rx_thread(self, out_filename, packet_size):
@@ -340,7 +346,8 @@ class CnicFpga(FpgaPersonality):
     def stop_receive(self) -> None:
         """
         Abort a 'receive_pcap' that's still waiting.
-        (e.g. if we set the wrong number of packets to wait for it may never finish)
+        (e.g. if we set the wrong number of packets to wait for it may never
+        finish automatically)
         """
         if self._rx_thread:
             self._rx_cancel.set()

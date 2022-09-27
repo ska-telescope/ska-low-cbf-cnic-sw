@@ -48,7 +48,7 @@ def compare_n_packets(
         if cap_packet != src_packet:
             differences.append(index)
         index += 1
-        if max_packets and index > max_packets:
+        if max_packets and index >= max_packets:
             break
     return differences, index
 

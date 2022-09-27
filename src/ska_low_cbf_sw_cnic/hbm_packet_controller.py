@@ -110,6 +110,7 @@ class HbmPacketController(FpgaPeripheral):
         Simple virtual address mapper for writing to multiple HBM buffers.
         :param data: numpy array to write
         :param address: byte-based address
+        :raises IndexError: if data cannot fit at address
         """
         # Note bisect works here because our first buffer to use is memory 1
         # (would need to add an offset if this was not the case)
@@ -118,7 +119,7 @@ class HbmPacketController(FpgaPeripheral):
         start_buffer = bisect.bisect(self._buffer_offsets, address)
         end_buffer = bisect.bisect(self._buffer_offsets, address + len(data))
         if end_buffer >= len(self._buffer_offsets):
-            raise RuntimeError(
+            raise IndexError(
                 f"Cannot fit {len(data)} bytes "
                 f"starting from virtual address {address}. "
                 f"Buffers end at {self._buffer_offsets[-1]}."
@@ -149,7 +150,7 @@ class HbmPacketController(FpgaPeripheral):
         :param packet_size: Number of Bytes used for each packet
         :return:
         """
-        print(f"Writing to {out_filename}")
+        self._logger.info(f"Writing to {out_filename}")
         with open(out_filename, "wb") as out_file:
             self._dump_pcap(out_file, packet_size)
 
@@ -180,12 +181,13 @@ class HbmPacketController(FpgaPeripheral):
         n_packets = 0
         # start from 1 as our first buffer is #1
         for buffer in range(1, len(self._buffer_offsets)):
+            # skipping buffers for debugging
+            if not self._rx_buffer_enabled(buffer):
+                self._logger.debug(f"Skipping buffer {buffer}")
+                continue
+
             end = getattr(self, f"rx_hbm_{buffer}_end_addr").value
-            print(
-                f"Reading {end} B from HBM buffer {buffer} ",
-                end="",
-                flush=True,
-            )
+            self._logger.info(f"Reading {end} B from HBM buffer {buffer} ")
             if end == 0:
                 # No data in this buffer,
                 # so we have already processed the last packet
@@ -204,6 +206,7 @@ class HbmPacketController(FpgaPeripheral):
                     .view(dtype=np.uint8)
                 )
                 print(".", end="", flush=True)
+            print("")
             # END WORKAROUND
             # below is the code that would work if not for the bug!
             # raw = (
@@ -211,7 +214,7 @@ class HbmPacketController(FpgaPeripheral):
             #     .read_memory(buffer, end)
             #     .view(dtype=np.uint8)
             # )
-            print(f"\nWriting buffer {buffer} packets to file")
+            self._logger.info(f"Writing buffer {buffer} packets to file")
 
             if last_partial_packet is not None:
                 # insert tail of last buffer into head of this one
@@ -254,17 +257,24 @@ class HbmPacketController(FpgaPeripheral):
             break
             # end stop at rx_packets_to_capture logic
         # end for each buffer loop
-        print("Finished writing\n")
+        self._logger.info(f"Finished writing {n_packets} packets")
         total_bytes = n_packets * packet_size
         if timestamped:
             try:
                 duration = float(timestamp - first_ts)
-                data_rate_gbps = (8 * total_bytes / duration) / 1e9
-                print(f"Capture duration {duration:.9f} s")
-                print(f"Average data rate {data_rate_gbps:.3f} Gbps")
+                self._logger.info(f"Capture duration {duration:.9f} s")
+                # guard against divide by zero
+                # when PTP isn't active it marks all packets at t=0
+                if duration > 0:
+                    data_rate_gbps = (8 * total_bytes / duration) / 1e9
+                    self._logger.info(
+                        f"Average data rate {data_rate_gbps:.3f} Gbps"
+                    )
+                else:
+                    self._logger.warning("Cannot calculate data rate")
             except NameError:
                 self._logger.error("Couldn't calculate duration of capture")
-        print(
+        self._logger.info(
             (
                 f"Wrote {n_packets} packets, "
                 f"{str_from_int_bytes(total_bytes)} "
@@ -290,10 +300,10 @@ class HbmPacketController(FpgaPeripheral):
             return
         self._loaded_pcap = None
         with open(in_filename, "rb") as in_file:
-            print(f"Loading from {in_filename}")
+            self._logger.info(f"Loading from {in_filename}")
             self._load_pcap(in_file)
             self._loaded_pcap = in_filename
-            print("Loading complete")
+            self._logger.info("Loading complete")
 
     def _load_pcap(self, in_file: typing.BinaryIO) -> None:
         """
@@ -328,7 +338,15 @@ class HbmPacketController(FpgaPeripheral):
             #  - and verify the length?
 
             padded_packet[:packet_size] = np.frombuffer(packet, dtype=np.uint8)
-            self._virtual_write(padded_packet, virtual_address)
+            try:
+                self._virtual_write(padded_packet, virtual_address)
+            except IndexError:
+                # stop if we don't have enough memory left for the packet
+                self._logger.debug(
+                    f"Aborting load, {padded_packet.nbytes} B can't fit at"
+                    f" virtual address {virtual_address}"
+                )
+                break
             n_packets += 1
             virtual_address += packet_padded_size
             if virtual_address >= print_next_dot:
@@ -338,10 +356,16 @@ class HbmPacketController(FpgaPeripheral):
                 # brief sleep to give the control system a chance to do things
                 time.sleep(0.0001)
 
-        print(
-            f"\nLoaded {n_packets} packets, "
+        self._logger.info(
+            f"Loaded {n_packets} packets, "
             f"{str_from_int_bytes(virtual_address)}"
         )
+        if n_packets < self.tx_packet_to_send.value:
+            self._logger.warning(
+                f"Expected {self.tx_packet_to_send.value} packets but only "
+                f"got {n_packets} (will use {n_packets})"
+            )
+            self.tx_packet_to_send = n_packets
 
     def configure_tx(
         self,
@@ -362,7 +386,7 @@ class HbmPacketController(FpgaPeripheral):
         :param rate: transmission rate (Gigabits per sec),
         ignored if burst_gap given
         """
-        print("Configuring Tx params")
+        self._logger.info("Configuring Tx params")
         if burst_size != 1:
             warnings.warn("Packet burst not tested!")
 
@@ -370,7 +394,7 @@ class HbmPacketController(FpgaPeripheral):
             self.tx_burst_gap = burst_gap
         else:
             self.tx_burst_gap = _gap_from_rate(packet_size, rate, burst_size)
-            print(
+            self._logger.info(
                 (
                     f"{rate} Gbps with {packet_size} B packets "
                     f"in bursts of {burst_size} "
@@ -417,3 +441,15 @@ class HbmPacketController(FpgaPeripheral):
         self.rx_reset_capture = 1
         self.rx_reset_capture = 0
         self.rx_enable_capture = 1
+
+    def _rx_buffer_enabled(self, buffer: int) -> bool:
+        """
+        Check if Rx buffer is enabled
+        :param buffer: Buffer index, starting from 1
+        :return: True = buffer in use
+        """
+        # check if debug register exists
+        if "rx_bank_enable" not in self._fields:
+            return True
+
+        return not bool(self.rx_bank_enable & (1 << (buffer - 1)))
